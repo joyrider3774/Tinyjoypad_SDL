@@ -62,6 +62,30 @@ if (WIN32)
 endif()
 
 add_executable(${PROJECT_NAME})
+
+# avrCompat.h (../gameworld) deliberately typedefs uint8_t/int8_t/uint16_t/
+# int16_t/uint32_t to plain `int` (see that file's own comment - load-
+# bearing, not a simplification to revert). On Apple's SDK - unlike MinGW/
+# glibc, confirmed via this project's own CI - <stdlib.h>/<string.h>/
+# <math.h> transitively pull in Apple's own individual fixed-width-type
+# leaf headers (_types/_uint8_t.h, sys/_types/_int8_t.h, etc, each real
+# 1-byte/2-byte-width typedefs) before avrCompat.h's own typedefs run,
+# and C has no way to "undo" an earlier typedef - so the second,
+# conflicting one is a hard compile error, found via a real macOS CI run
+# ("typedef redefinition with different types"). Pre-defining each leaf
+# header's own include guard here makes it a no-op when pulled in later,
+# leaving avrCompat.h's own int-aliased typedefs as the only real
+# definition - scoped to Apple only, since nothing needs guarding on the
+# other two platforms.
+if(APPLE)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        _UINT8_T
+        _INT8_T
+        _UINT16_T
+        _INT16_T
+        _UINT32_T
+    )
+endif()
 target_sources(${PROJECT_NAME} PRIVATE ${SRC} )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
