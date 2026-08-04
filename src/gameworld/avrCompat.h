@@ -25,6 +25,34 @@
 // reintroducing every one of those bugs into code that was written/
 // debugged assuming 32-bit-int semantics throughout. Do not "fix" this.
 //
+// `#define`d, not `typedef`'d (unlike the Vircon32 build's own version of
+// this file, which can typedef freely since Vircon32 has no competing
+// libc): on Apple's SDK, <stdlib.h> just above transitively needs the
+// REAL uint8_t/int8_t/uint16_t/int16_t/uint32_t (unlike MinGW/glibc,
+// found via a real macOS CI run) - deep system headers like
+// sys/resource.h declare their own struct fields with them
+// (`uint8_t ri_uuid[16];`), and <stdint.h> itself defines
+// `uint_least32_t` etc. in terms of them, so those real typedefs MUST be
+// allowed to stand. A `typedef int uint8_t;` here would conflict with
+// that real typedef (C can't redefine a typedef to a different type) -
+// tried first, and broke exactly that (`error: typedef redefinition with
+// different types`). Pre-defining the real headers' own include guards to
+// suppress them instead (a second attempt) broke worse: those same deep
+// system headers still need the *real* narrow types for their own
+// internal fields and no longer had them (`error: unknown type name
+// 'uint8_t'`). A `#define` sidesteps both failure modes - it doesn't
+// redeclare the real `uint8_t` typedef at all, it just rewrites the raw
+// *token* `uint8_t` to `int` for every line of source from this point
+// forward in this translation unit (the rest of this file, then
+// machineDependent.h/the shim headers/the actual game source) - by which
+// point <stdlib.h>/<string.h>/<math.h> have already been fully processed
+// using the real types, so nothing downstream loses them. Confirmed
+// nothing later in this translation unit needs the real names back
+// (machineDependent.h only adds <stdbool.h>/<stddef.h>, neither of which
+// touches these types) - see itoa's own near-identical `#define` redirect
+// near the bottom of this file for the same technique used for the same
+// class of reason (MinGW's own non-static libc `itoa()`, there).
+//
 // Two real differences from the Vircon32 version:
 // - `size_t` is NOT aliased here (confirmed via grep: unused anywhere else
 //   in the whole project) - the real system size_t (via <stddef.h>,
@@ -39,12 +67,12 @@
 //   standard, but standard C has no such functions.
 // -----------------------------------------------------------------------------
 
-typedef int uint8_t;
-typedef int int8_t;
-typedef int uint16_t;
-typedef int int16_t;
-typedef int uint32_t;
-typedef int int32_t;
+#define uint8_t  int
+#define int8_t   int
+#define uint16_t int
+#define int16_t  int
+#define uint32_t int
+#define int32_t  int
 
 #define PROGMEM
 
