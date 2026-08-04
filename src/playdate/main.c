@@ -244,9 +244,16 @@ static void pixelGridEffectRender()
 // Playdate's own update-callback model presents automatically once
 // update() (below) returns 1 - no manual "present"/vsync-wait call exists
 // or is needed, unlike SDL's SDL_RenderPresent()/vsync-locked loop.
-void md_endFrame() 
+void md_endFrame()
 {
+    // Standard NDEBUG convention (CMake's own Debug/Release configuration
+    // types - see CMakeLists.txt's own CMAKE_CONFIGURATION_TYPES - define
+    // this automatically for Release, not Debug) rather than a bespoke
+    // macro: the SDK's own FPS counter is a debug tool, not something a
+    // released build should show players.
+#ifndef NDEBUG
     pd->system->drawFPS(0,0);
+#endif
 }
 
 // Both unused on this port - see this file's own header comment for why
