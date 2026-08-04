@@ -1,11 +1,9 @@
 # TinyJoypad → SDL3
 
-A native SDL3 port of [tinyjoypad_vircon32](../tinyjoypad_vircon32) - the
-same **33 games**, originally written for the
+A native SDL3 port bringing **33 games**, originally written for the
 [TinyJoypad](https://www.tinyjoypad.com/) ATtiny85 + SSD1306 128x64 OLED
-handheld, behind the same shared game-select menu, but running as a plain
-desktop executable instead of a [Vircon32](https://www.vircon32.com/)
-cartridge - no emulator required.
+handheld, behind one shared game-select menu, running as a plain desktop
+executable - no emulator required.
 
 Two more ports also live in this same repo, alongside the primary SDL3
 port in `src/sdl3/`, all three sharing one `src/gameworld/` codebase (all
@@ -30,21 +28,19 @@ See `CLAUDE.md`'s "Directory layout / multi-port structure" section for
 the full writeup on how this multi-port layout works, and for what a
 future fourth port would need to add.
 
-This is a **sibling port**, not a fork: it reuses the sibling
-`tinyjoypad_vircon32` project's already-ported, already-bug-fixed C game
-logic wholesale, converting only the small amount of nonstandard Vircon32
-C-dialect syntax that logic depended on back into standard C (array
-declaration order, `int[]`-as-string → `char*`, bare `struct Tag` →
-`typedef struct`) - the actual game code, and the whole bug-fix history
-behind it, is unchanged. Every per-game bug already found and fixed in
-that project (the byte-truncation/shift-wraparound/signed-sentinel/RNG-
-range/logical-shift family of AVR-vs-Vircon32 dialect bugs, plus dozens of
-genuine game-logic bugs found via real play) applies here too, since it's
-the same C.
+The game logic itself is already-ported, already-bug-fixed C, carried over
+by converting only the small amount of nonstandard Vircon32 C-dialect
+syntax it depended on back into standard C (array declaration order,
+`int[]`-as-string → `char*`, bare `struct Tag` → `typedef struct`) - the
+actual game code, and the whole bug-fix history behind it, is unchanged.
+Every per-game bug already found and fixed there (the byte-truncation/
+shift-wraparound/signed-sentinel/RNG-range/logical-shift family of dialect
+bugs, plus dozens of genuine game-logic bugs found via real play) applies
+here too, since it's the same C.
 
 The platform layer itself - window/input/audio/rendering, the menu, the
 CLI, and the presentation effects below - is new, built directly against
-SDL3, reusing infrastructure and technique from the same author's sibling
+SDL3, reusing infrastructure and technique from the same author's
 `crisp-game-lib-portable-sdl` project (`cglpSDL3.c`) where it fit: the
 CInput abstraction, the audio oscillator shape, and the glow/CRT/pixel-
 grid presentation effects (rebuilt around GPU textures rather than ported
@@ -127,8 +123,7 @@ file itself as a positional argument to launch straight into that game).
 | Mute / unmute sound | S | North button (Y on Xbox) |
 
 The quit-confirmation dialog (Start, mid-game) freezes the current game
-and asks YES/NO before returning to the menu - the same behavior as the
-sibling Vircon32 build. The glow/CRT/pixel-grid cycle is a single button
+and asks YES/NO before returning to the menu. The glow/CRT/pixel-grid cycle is a single button
 stepping through 5 combinations (none → pixel-grid+glow → pixel-grid →
 CRT scanlines → glow alone → back to none) and only has any visible
 effect during actual gameplay, not on the menu screen. Fullscreen/volume/
@@ -138,41 +133,69 @@ on the command line still cover fullscreen/no-sound at launch time.
 
 ## Games
 
-Same 33 games, same credits/licenses, as the sibling Vircon32 build - see
-[tinyjoypad_vircon32/README.md](../tinyjoypad_vircon32/README.md#games)
-for the full per-game table (original author, license, upstream source
-link). Not duplicated here since it's identical either way.
+| Game (in-cartridge title) | Original Author | License | Source |
+|---|---|---|---|
+| NumberPlace | Obono | MIT | [TinyJoypadWorks](https://github.com/obono/TinyJoypadWorks) |
+| 2048 | Obono | MIT | [TinyJoypadWorks](https://github.com/obono/TinyJoypadWorks) |
+| HollowSeeker | Obono | MIT | [TinyJoypadWorks](https://github.com/obono/TinyJoypadWorks) |
+| Tiny Invaders | Daniel C / Sven B | GPLv3 | [Tiny-invaders-v4.2](https://github.com/Lorandil/Tiny-invaders-v4.2) |
+| Tiny Minez | Sven B / Lorandil | GPLv3 | [TinyMinez](https://github.com/Lorandil/TinyMinez) |
+| Tiny Dungeon | Sven B / Lorandil | MIT | [TinyDungeon](https://github.com/Lorandil/TinyDungeon) |
+| Tiny Lander | Roger Buehler (tscha70) | GPLv3 | [TinyLanderV1.0](https://github.com/tscha70/TinyLanderV1.0) |
+| Tiny Pinball | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Pacman | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Bomber | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Doc | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Bert | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Tris | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Arkanoid | Daniel Champagne | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Trick | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Missile | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Bike | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Arena | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Gilbert | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Pipe | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Morpion | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny Plaque | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny SQuest | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Tiny DDug | Daniel C | GPLv3 | [tinyjoypad.com](https://www.tinyjoypad.com/tinyjoypad_attiny85) |
+| Wren Rollercoaster | Andy Jackson | Non-commercial, with attribution | [Attiny-Arduino-Games](https://github.com/andyhighnumber/Attiny-Arduino-Games) |
+| Frogger | Andy Jackson (art: @senkunmusashi) | Non-commercial, with attribution | [Attiny-Arduino-Games](https://github.com/andyhighnumber/Attiny-Arduino-Games) |
+| Bat Bonanza | Andy Jackson | Non-commercial, with attribution | [Attiny-Arduino-Games](https://github.com/andyhighnumber/Attiny-Arduino-Games) |
+| Stacker | Andy Jackson | Non-commercial, with attribution | [Attiny-Arduino-Games](https://github.com/andyhighnumber/Attiny-Arduino-Games) |
+| UFO | Ilya Titov | Non-commercial, with attribution | [AttinyArcade](https://github.com/webboggles/AttinyArcade) |
+| Oroboros | Ilya Titov | Non-commercial, with attribution | [AttinyArcade](https://github.com/webboggles/AttinyArcade) |
+| Run Dude Run | Ilya Titov | Non-commercial, with attribution | [AttinyArcade](https://github.com/webboggles/AttinyArcade) |
+| Four in a Row | Unknown | None specified | [tiny-handheld](https://github.com/Yevgeniy-Olexandrenko/tiny-handheld) |
+| Dino Game | tiny-handheld project (original) | None specified | [tiny-handheld](https://github.com/Yevgeniy-Olexandrenko/tiny-handheld) |
 
 ## Credits
 
-- [Vircon32](https://www.vircon32.com/) - the fantasy console
-  `tinyjoypad_vircon32` (this project's own sibling, the source of every
-  game's own C logic - see the intro above) targets. This project's own
-  menu/dialog text is drawn with a faithful reproduction of Vircon32's
-  real BIOS font (`src/gameworld/biosFont.h` - 10x20px, codepage 1252, all
-  256 glyphs extracted directly from the actual BIOS font asset, not
-  hand-transcribed), authored by **Carra** (Vircon32's own author) and
+- [Vircon32](https://www.vircon32.com/) - the fantasy console the game
+  logic here was originally ported through. This project's own menu/
+  dialog text is drawn with a faithful reproduction of Vircon32's real
+  BIOS font (`src/gameworld/biosFont.h` - 10x20px, codepage 1252, all 256
+  glyphs extracted directly from the actual BIOS font asset, not hand-
+  transcribed), authored by **Carra** (Vircon32's own author) and
   published on OpenGameArt.org as *"Pixel Art Outlined Text Fonts"* under
   **CC-BY 4.0** - a separate license from this project's own GPLv3 below;
   this credit is that license's own attribution requirement.
-- `crisp-game-lib-portable-sdl` (same author, a different game collection
-  with its own Vircon32-ported sibling too) - the source of the `CInput`
-  keyboard/gamepad abstraction, the single-voice audio oscillator shape,
-  the original inspiration for the glow/CRT/pixel-grid presentation
-  effects, and (for the SDL2 and Playdate ports) the direct API-porting
-  reference - see `CLAUDE.md` for exactly where each was reused versus
-  redesigned.
+- `crisp-game-lib-portable-sdl` (same author, a different game collection) -
+  the source of the `CInput` keyboard/gamepad abstraction, the single-
+  voice audio oscillator shape, the original inspiration for the glow/
+  CRT/pixel-grid presentation effects, and (for the SDL2 and Playdate
+  ports) the direct API-porting reference - see `CLAUDE.md` for exactly
+  where each was reused versus redesigned.
 - Every individual game's own original author/license is preserved
-  unmodified in its own header comment under `src/gameworld/games/` (see
-  "Games" above) - not repeated here since it's identical to the sibling
-  Vircon32 build's own per-game credit table.
+  unmodified in its own header comment under `src/gameworld/games/` and
+  listed per-game in the "Games" table above.
 
 ## License
 
-This project is **GPLv3** (`LICENSE.txt`, mirrored from the sibling
-Vircon32 build), for the same reason: at least one ported game (Tiny
-Invaders v4.2) is itself GPLv3, and combining GPLv3 code into one
-executable makes the whole executable a GPLv3 combined work. This covers
+This project is **GPLv3** (`LICENSE.txt`), for the same reason: at least
+one ported game (Tiny Invaders v4.2) is itself GPLv3, and combining GPLv3
+code into one executable makes the whole executable a GPLv3 combined
+work. This covers
 this project's own new code (both the SDL3 and SDL2 platform layers, the
 shared menu, the presentation effects) - each individual game's own
 original license/attribution is preserved unmodified in its own header
@@ -181,9 +204,8 @@ comment in `src/gameworld/games/`.
 ## See also
 
 - [CLAUDE.md](CLAUDE.md) - this project's own architecture, the dialect-
-  conversion process, every SDL3-specific bug found during the port (not
-  game-logic bugs - those are the sibling project's own history), and the
-  presentation-effects design.
+  conversion process, every SDL3-specific bug found during the port, and
+  the presentation-effects design.
 - [OPTIMIZATIONS.md](OPTIMIZATIONS.md) - performance notes specific to
   this SDL3 build (a real desktop CPU/GPU, not Vircon32's fixed 250,000-
   cycle/frame budget - a genuinely different cost model).
