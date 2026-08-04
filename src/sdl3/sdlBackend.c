@@ -166,7 +166,7 @@ void md_setDialogShowing( bool showing )
 }
 
 #define GLOW_DOWNSCALE_FACTOR 8
-#define GLOW_INTENSITY 96 // alpha, 0-255 - matches cglpSDL3.c's own DEFAULT_GLOW_INTENSITY
+#define GLOW_INTENSITY 140 // alpha, 0-255
 
 #define CRT_SCANLINE_SPACING   6
 #define CRT_SCANLINE_THICKNESS 2
