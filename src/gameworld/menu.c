@@ -170,7 +170,7 @@ int menu_update()
 
     // ---- draw ----
     md_beginFrame();
-    biosDrawText( "TINYJOYPAD FOR SDL3", menuCenteredX( "TINYJOYPAD FOR SDL3" ), 40 );
+    biosDrawText( "TINYJOYPAD FOR SDL", menuCenteredX( "TINYJOYPAD FOR SDL" ), 40 );
     biosDrawText( "UP/DOWN: SELECT     A: PLAY", menuCenteredX( "UP/DOWN: SELECT     A: PLAY" ), 80 );
 
     int currentPage = selection / GAMES_PER_PAGE;
