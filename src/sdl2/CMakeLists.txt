@@ -1,0 +1,103 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(TinyjoypadSDL2 LANGUAGES C)
+
+# -----------------------------------------------------------------------------
+# The SDL2 port - a standalone CMake project in its own right, mirroring
+# src/sdl3/CMakeLists.txt's own shape exactly (see that file's own header
+# comment, and CLAUDE.md's "Directory layout / multi-port structure"
+# section, for why there's no repo-wide top-level CMakeLists.txt). Build
+# from here:
+#
+#   cd src/sdl2
+#   cmake -B build -G Ninja -DUSE_VENDORED_SDL=1
+#   cmake --build build
+#
+# cmake_minimum_required is 3.20 here, not src/sdl3's 3.5 - matches the
+# sibling cglpSDL2/CMakeLists.txt exactly; SDL2's own CMake config needs
+# the newer minimum, SDL3's own doesn't.
+#
+# Pulls in the shared, port-agnostic "game world" from ../gameworld
+# unchanged - see src/sdl3/CMakeLists.txt's own comment on the same lines,
+# identical reasoning here.
+# -----------------------------------------------------------------------------
+
+# Create an option to switch between a system sdl library and a vendored sdl library
+option(USE_VENDORED_SDL "Use vendored libraries" OFF)
+
+# The vendored SDL2 checkout lives at the repo root (${PROJECT_SOURCE_DIR}/../../SDL2),
+# not inside this port directory - same shared-vendoring-location reasoning
+# as src/sdl3/CMakeLists.txt's own SDL3/.
+if(USE_VENDORED_SDL)
+	set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+	set(SDL_STATIC_PIC ON CACHE BOOL "" FORCE)
+	add_subdirectory("${PROJECT_SOURCE_DIR}/../../SDL2" "${PROJECT_SOURCE_DIR}/build/SDL2" EXCLUDE_FROM_ALL)
+else()
+    # 1. Look for a SDL2 package, 2. look for the SDL2 component and 3. fail if none can be found
+    find_package(SDL2 REQUIRED CONFIG REQUIRED COMPONENTS SDL2)
+
+    # 1. Look for a SDL2 package, 2. Look for the SDL2main component and 3. DO NOT fail when SDL2main is not available
+    find_package(SDL2 REQUIRED CONFIG COMPONENTS SDL2main)
+endif()
+
+
+# Every shim/menu/games/*.c file is its own separate translation unit (see
+# CLAUDE.md's "Translation-unit boundary" section) - gamesMain.c doesn't
+# #include any of their .c bodies, so ../gameworld/*.c and
+# ../gameworld/games/*.c are globbed directly here alongside this port's own
+# *.c, each compiled and linked independently like any normal multi-file C
+# project. ../gameworld is the ENTIRE reason this is a multi-port-ready
+# layout - it never #includes SDL.h and knows nothing about this port.
+file(GLOB SRC CONFIGURE_DEPENDS
+        "${PROJECT_SOURCE_DIR}/*.c"
+        "${PROJECT_SOURCE_DIR}/*.h"
+        "${PROJECT_SOURCE_DIR}/../gameworld/*.c"
+        "${PROJECT_SOURCE_DIR}/../gameworld/*.h"
+        "${PROJECT_SOURCE_DIR}/../gameworld/games/*.c"
+        "${PROJECT_SOURCE_DIR}/../gameworld/games/*.h"
+)
+
+if (WIN32)
+	set(CMAKE_EXE_LINKER_FLAGS "-static -mwindows")
+endif()
+
+add_executable(${PROJECT_NAME})
+target_sources(${PROJECT_NAME} PRIVATE ${SRC} )
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    "${PROJECT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/../gameworld"
+)
+
+# SDL2 (unlike SDL3) still typically needs SDL2main linked ahead of the
+# app's own main() on some platforms/link setups (it supplies a real
+# WinMain()-to-main() shim on Windows, among other things) - link it
+# whenever the package actually provides it, matching the sibling
+# cglpSDL2/CMakeLists.txt's own conditional.
+if(TARGET SDL2::SDL2main)
+    target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2main)
+endif()
+
+if(USE_VENDORED_SDL)
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        SDL2::SDL2-static
+    )
+else()
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        SDL2::SDL2
+    )
+endif()
+
+# md_drawGameThumbnail() (sdlBackend.c) resolves thumbnails relative to
+# SDL_GetBasePath() - the built exe's own directory, not the launching
+# shell's cwd - so the repo-root assets/ tree needs to be mirrored alongside
+# it after every build for thumbnails (or any future asset) to be found,
+# both during development and in a packaged/distributed copy. assets/ lives
+# at the repo root (${PROJECT_SOURCE_DIR}/../../assets), not inside this
+# port directory, since the actual asset files (thumbnails) are themselves
+# port-agnostic content, same reasoning as ../gameworld.
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${PROJECT_SOURCE_DIR}/../../assets"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+)

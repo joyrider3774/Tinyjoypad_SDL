@@ -1,0 +1,7 @@
+/src/playdate/TinyJoypad.pdx
+/src/playdate/TinyJoypad_DEVICE.pdx
+/src/playdate/.sentry-native
+/src/playdate/build
+/src/playdate/build_device
+/src/sdl2/build
+/src/sdl3/build

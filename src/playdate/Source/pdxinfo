@@ -1,0 +1,6 @@
+name=TinyJoypad
+author=Joyrider3774
+description=TinyJoypad games behind one shared menu
+bundleID=com.tinyjoypad.playdate
+version=1.0
+buildNumber=1
