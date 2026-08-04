@@ -649,6 +649,7 @@ static int  gConfigWindowW   = DEFAULT_WINDOW_WIDTH;
 static int  gConfigWindowH   = DEFAULT_WINDOW_HEIGHT;
 static bool gConfigFullscreen = false;
 static bool gConfigVsync      = true;
+static bool gConfigSoftwareRendering = false;
 
 void sdlBackend_setWindowSize( int width, int height )
 {
@@ -666,6 +667,11 @@ void sdlBackend_setFullscreen( bool fullscreen )
 void sdlBackend_setVsync( bool enabled )
 {
     gConfigVsync = enabled;
+}
+
+void sdlBackend_setSoftwareRendering( bool enabled )
+{
+    gConfigSoftwareRendering = enabled;
 }
 
 bool sdlBackend_init( int argc, char** argv )
@@ -692,7 +698,13 @@ bool sdlBackend_init( int argc, char** argv )
         return false;
     }
 
-    gRenderer = SDL_CreateRenderer( gWindow, NULL );
+    // NULL = let SDL auto-pick its own best-available driver (typically
+    // hardware-accelerated - D3D11/D3D12/OpenGL/Vulkan/Metal depending on
+    // platform); SDL_SOFTWARE_RENDERER ("software", a real SDL3-defined
+    // driver name, not a made-up string) forces its built-in CPU rasterizer
+    // instead - "-s" on the command line, see main.c.
+    gRenderer = SDL_CreateRenderer( gWindow,
+        gConfigSoftwareRendering ? SDL_SOFTWARE_RENDERER : NULL );
     if( !gRenderer )
     {
         sdlLog( "Failed to create renderer: %s\n", SDL_GetError() );

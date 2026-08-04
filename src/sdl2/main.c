@@ -43,6 +43,7 @@ static void printHelp( char* exeName )
     printf( "  -ns            No sound (skip audio init)\n" );
     printf( "  -fps           Show fps counter overlay\n" );
     printf( "  -nd            No delay (uncapped framerate, vsync off)\n" );
+    printf( "  -s             Force software rendering (no GPU acceleration)\n" );
     printf( "  -list          List all game names, then exit\n" );
     printf( "  -g <NAME>      Launch a specific game directly by title\n" );
     printf( "  -ms            Batch-capture a screenshot of every game (./<TITLE>.bmp), then exit\n" );
@@ -263,6 +264,7 @@ int main( int argc, char** argv )
     bool showFps     = false;
     bool noDelay     = false;
     bool makeScreenshots = false;
+    bool softwareRendering = false;
     int  windowWidth  = 0; // 0 = keep sdlBackend's own default
     int  windowHeight = 0;
     char startGameTitle[ 100 ] = { 0 };
@@ -324,6 +326,9 @@ int main( int argc, char** argv )
         if( SDL_strcmp( argv[ i ], "-nd" ) == 0 )
           noDelay = true;
 
+        if( SDL_strcmp( argv[ i ], "-s" ) == 0 )
+          softwareRendering = true;
+
         if( SDL_strcmp( argv[ i ], "-ms" ) == 0 )
           makeScreenshots = true;
 
@@ -340,19 +345,20 @@ int main( int argc, char** argv )
         }
     }
 
-    // "-a" (force hardware-accelerated renderer) and "-nsd" (disable scaled
-    // drawing) from cglpSDL2.c's own flag set are deliberately not carried
-    // over here: this backend already always requests SDL's own best-
-    // available renderer (typically hardware-accelerated, already proven
-    // throughout this whole port's screenshot verification), so there is
-    // no separate software-rendering code path to toggle into; and there is
-    // no glow/CRT scaled-drawing pipeline built yet for "-nsd" to disable
-    // (see the porting plan's own Phase 5 - glow/CRT polish is still
-    // pending). Revisit if/when either is actually built.
+    // "-nsd" (disable scaled drawing) from cglpSDL2.c's own flag set is
+    // deliberately not carried over here: there is no glow/CRT scaled-
+    // drawing pipeline built the way cglp's own is for "-nsd" to disable.
+    // cglp's own "-a" (force hardware-accelerated) has no equivalent
+    // either, but for the opposite reason now - hardware-accelerated is
+    // already this backend's own default (SDL_RENDERER_ACCELERATED, see
+    // sdlBackend_init()), so there's nothing "-a" would need to force;
+    // "-s" below covers the one real use this project actually has for a
+    // renderer-choice flag, forcing the *software* renderer instead.
 
     sdlBackend_setWindowSize( windowWidth, windowHeight );
     sdlBackend_setFullscreen( fullscreen );
     sdlBackend_setVsync( !noDelay );
+    sdlBackend_setSoftwareRendering( softwareRendering );
 
     if( !sdlBackend_init( argc, argv ) )
     {

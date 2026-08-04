@@ -961,17 +961,35 @@ FPS overlay, BIOS-font-rendered top-left corner), `-nd` (uncapped
 framerate - toggles vsync off, rather than cglp's own manual
 `SDL_Delay`-based pacing, since vsync already provides correct pacing
 when enabled and this project had no reason to duplicate that logic),
-`-list`, `-g <NAME>` (direct launch, case-insensitive), `-ms` (batch
-screenshot every game - also the mechanism thumbnails are generated
-from), `-joy` (write a `.joy` title-stub file per game, mirroring cglp's
-own `.cgl` files under this project's own extension), and a `.joy` file
-itself as a positional argument (extracts the game title from the
-filename, matching cglp's own filename-only convention - never reads the
-file's actual content). Deliberately **not** carried over: `-a` (this
-backend always requests SDL's own best-available renderer already, no
-separate software-rendering path exists to toggle into) and `-nsd`
-(cglp's own "no scaled drawing" toggle ties into its glow/CRT pipeline in
-a way this project's own effect design has no equivalent knob for).
+`-s` (force software rendering - added later, on direct user request; see
+below), `-list`, `-g <NAME>` (direct launch, case-insensitive), `-ms`
+(batch screenshot every game - also the mechanism thumbnails are
+generated from), `-joy` (write a `.joy` title-stub file per game,
+mirroring cglp's own `.cgl` files under this project's own extension),
+and a `.joy` file itself as a positional argument (extracts the game
+title from the filename, matching cglp's own filename-only convention -
+never reads the file's actual content). Deliberately **not** carried
+over: `-nsd` (cglp's own "no scaled drawing" toggle ties into its
+glow/CRT pipeline in a way this project's own effect design has no
+equivalent knob for). cglp's own `-a` (force hardware-accelerated) also
+has no equivalent, but for the opposite reason from `-s`'s own existence:
+hardware-accelerated is already this backend's own default (`SDL_CreateRenderer(
+window, NULL)` on SDL3 auto-picks its best-available driver;
+`SDL_RENDERER_ACCELERATED` is requested explicitly on SDL2), so there's
+nothing left for `-a` to force.
+
+`-s` requests SDL's own built-in CPU rasterizer instead of that default -
+`SDL_SOFTWARE_RENDERER` (`SDL_CreateRenderer(window, SDL_SOFTWARE_RENDERER)`,
+SDL3's own defined driver-name string, literally `"software"`) on SDL3;
+`SDL_RENDERER_SOFTWARE` swapped in for `SDL_RENDERER_ACCELERATED` in the
+renderer-creation flags (SDL2 has no NULL/"best available" shorthand the
+way SDL3 does) on SDL2. Both routed through a new `sdlBackend_setSoftwareRendering()`
+setter (matching the existing `setWindowSize()`/`setFullscreen()`/
+`setVsync()` pattern - CLI parsing/ownership stays in `main.c`, `sdlBackend.c`
+only exposes setters called before `sdlBackend_init()`). Confirmed via the
+existing renderer-name startup log line (`sdlBackend initialized:
+renderer=...`) - reports `software` with `-s` on both ports, `direct3d11`/
+`direct3d` (unchanged) without it.
 
 ## Status
 

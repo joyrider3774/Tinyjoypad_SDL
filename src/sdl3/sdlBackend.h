@@ -26,6 +26,10 @@ void sdlBackend_setFullscreen( bool fullscreen );
 // Vsync-locked pacing (the default) vs uncapped ("-nd", run as fast as
 // possible) - matches cglpSDL3.c's own nodelay flag.
 void sdlBackend_setVsync( bool enabled );
+// Forces SDL's built-in software renderer ("-s") instead of the default
+// auto-picked (typically hardware-accelerated) one - see sdlBackend_init()
+// for how this maps to SDL_CreateRenderer()'s own driver-name argument.
+void sdlBackend_setSoftwareRendering( bool enabled );
 
 // Creates the window/renderer/framebuffer surface, opens a gamepad (if any)
 // via CInput, and initializes audio. Returns false if SDL init failed.

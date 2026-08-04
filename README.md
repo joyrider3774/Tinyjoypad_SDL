@@ -104,7 +104,8 @@ substitute `TinyjoypadSDL2` (from `src/sdl2/build/`) for the SDL2 one.
 
 See `-help` for the complete flag list (window size/fullscreen, `-ns` to
 skip audio, `-fps` for a live FPS overlay, `-nd` to uncap the framerate,
-`-ms` to batch-capture a gameplay screenshot of every game, `-joy` to
+`-s` to force software rendering instead of the default GPU-accelerated
+one, `-ms` to batch-capture a gameplay screenshot of every game, `-joy` to
 write a `.joy` stub file per game for external frontends, and a `.joy`
 file itself as a positional argument to launch straight into that game).
 

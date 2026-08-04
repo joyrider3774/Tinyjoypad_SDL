@@ -668,6 +668,7 @@ static int  gConfigWindowW   = DEFAULT_WINDOW_WIDTH;
 static int  gConfigWindowH   = DEFAULT_WINDOW_HEIGHT;
 static bool gConfigFullscreen = false;
 static bool gConfigVsync      = true;
+static bool gConfigSoftwareRendering = false;
 
 void sdlBackend_setWindowSize( int width, int height )
 {
@@ -685,6 +686,11 @@ void sdlBackend_setFullscreen( bool fullscreen )
 void sdlBackend_setVsync( bool enabled )
 {
     gConfigVsync = enabled;
+}
+
+void sdlBackend_setSoftwareRendering( bool enabled )
+{
+    gConfigSoftwareRendering = enabled;
 }
 
 bool sdlBackend_init( int argc, char** argv )
@@ -728,7 +734,12 @@ bool sdlBackend_init( int argc, char** argv )
     // toggleable SDL_RenderSetVSync() is a newer (2.0.18+) SDL2 addition
     // this project has no reason to depend on when the flag does the same
     // job at creation time.
-    Uint32 rendererFlags = SDL_RENDERER_ACCELERATED;
+    // SDL_RENDERER_SOFTWARE ("-s") instead of the default _ACCELERATED -
+    // SDL2 has no NULL/"best available" driver-name shorthand the way
+    // SDL3 does (see this function's own comment above), so forcing
+    // software here means swapping which one of these two mutually
+    // exclusive flags gets requested, not passing a different name.
+    Uint32 rendererFlags = gConfigSoftwareRendering ? SDL_RENDERER_SOFTWARE : SDL_RENDERER_ACCELERATED;
     if( gConfigVsync )
       rendererFlags |= SDL_RENDERER_PRESENTVSYNC;
 
