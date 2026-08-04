@@ -1200,6 +1200,79 @@ frame to visually confirm the corrected iteration-count behavior itself,
 so worth a direct play-test focused on that exact scenario here too if
 time allows.
 
+## Tiny Bike: no motor sound exists upstream (confirmed, not a bug); a "pedaling" animation gap found and fixed on the sibling Vircon32 build, ported here too
+
+A direct question on the Vircon32 sibling project ("is it possible in
+tiny bike the motorsound and the player on the moving bike animation is
+not playing as intended") had two different answers there, both
+applicable here since this port shares the same `gameworld` game logic.
+
+**Motor/engine sound**: confirmed upstream has none at all (checked
+every real `Sound()` call site in `Tiny-Bike.ino` - only one-shot event
+cues: intro jingle, race-start confirm, a collision cue, bonus-life -
+nothing tied to acceleration/movement itself). Not a gap in either port.
+
+**Player animation**: a real gap. Upstream's `t` (`uint8_t t=0;`,
+declared once right before the race begins) is checked at the top of
+every real tick (`if(TRIG_OK==0 && Wheel_up==1 && t>0) {animBike =
+(animBike==1)?6:1;}`, the "pedaling" animation toggle) *before* that same
+tick's own `for(t=0;t<CHECK_SPEED_ADJ(ACCEL);t++)` speed-loop overwrites
+it - so `t>0` really means "did the *previous* tick's speed-loop run at
+least once," deliberately suppressing the pedaling animation while
+nearly stationary (freshly spawned, right after a crash, or before
+accelerating). This port's own `t` is a plain per-call local (the same
+variable touched by the `speedTicks` fix above), which can't carry a
+value across real ticks - and the port's own pedaling-toggle condition
+was simply missing the third condition entirely, so it animated pedaling
+unconditionally whenever not mid-wheelie-adjustment, including while
+stationary.
+
+**Fixed** with a new persistent global, `bikPrevSpeedTicks` (reset to 0
+in `bikBeginPlaying()`, matching where upstream's `t=0` sits relative to
+the race starting; captured as `bikPrevSpeedTicks = t;` right after the
+speed-loop finishes each tick) - the pedaling-toggle condition now reads
+`bikTrigOk==0 && bikWheelUp==1 && bikPrevSpeedTicks>0`, matching
+upstream's real three-condition gate.
+
+Ported directly from the identical fix in the sibling Vircon32 build,
+same session, same shared file. Verified with a clean rebuild of both
+`src/sdl3/` and `src/sdl2/` (both link successfully, no new warnings) -
+this fix lives in `src/gameworld/`, so `src/playdate/` picks it up
+automatically too, though not independently rebuilt this session. Not
+verified by actual play-test on this project - the Vircon32 sibling's
+own version was Puppeteer-verified (launched, idle, then accelerated, no
+crash), but a still screenshot can't prove an *animation* behaves
+correctly (holds still vs. cycles) the way it can prove a crash, so worth
+a direct play-test here too if time allows.
+
+## Tiny Bike locked to 30fps (whole-tick), confirmed by direct user play-test on the sibling Vircon32 build
+
+Investigating the pedaling-animation gap above (on the Vircon32 sibling
+project) led to a static cycle-count of the real I2C bit-bang driver -
+inconclusive (suggested upstream might run faster than 60fps, not
+slower, which didn't clearly explain a "too fast" perception). The user
+asked directly to try locking the game to 30fps as a test ("it seems the
+game may be running too fast judging from arduboy port"), tried it
+there, played it, and confirmed it as the right fix.
+
+Implemented as a whole-function tick-skip (`BIK_TICK_DIVISOR = 60/30 =
+2`), the same shape as Tiny Pipe's own "limit to 30fps including its
+logic" fix - gates input reads, physics, animation, and redraw together.
+Every existing wait-frame constant in the file is deliberately left
+unrescaled (this project's own standing "one divisor, no dual
+bookkeeping" practice) - they simply now take twice as long in real
+time.
+
+Ported directly from the confirmed Vircon32 fix, same session, same
+shared `gameworld/games/gameTinyBike.c` file. Verified with a clean
+rebuild of both `src/sdl3/` and `src/sdl2/` (both link successfully, no
+new warnings) - this fix lives in `src/gameworld/`, so `src/playdate/`
+picks it up automatically too, though not independently rebuilt this
+session. Not verified by actual play-test on this project specifically -
+the Vircon32 sibling's own version *was* directly play-tested and
+confirmed by the user, which is reasonable confidence given the logic is
+byte-identical, but worth a direct play-test here too if time allows.
+
 ## Status
 
 All 33 games ported, verified, and wired into the menu on all three ports
