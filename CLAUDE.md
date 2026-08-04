@@ -991,6 +991,50 @@ existing renderer-name startup log line (`sdlBackend initialized:
 renderer=...`) - reports `software` with `-s` on both ports, `direct3d11`/
 `direct3d` (unchanged) without it.
 
+### Start quits instead of returning to the menu, when launched via -g/.joy
+
+Cross-checked directly against `cglpSDL3.c`'s own Back-button handling
+(`if (!isInMenu && (startgame[0] == 0)) goToMenu(); else quit = 1;`,
+`startgame` being the parsed `-g`/`.cgl`-file title, never cleared again
+once a launch succeeds) on direct user request - confirmed cglp has no
+quit-confirmation dialog at all, and quits immediately in this case rather
+than offering any way back to a menu that was never shown in the first
+place. This project's own dialog exists specifically because there IS
+normally a menu to protect an accidental Start-press from leaving
+(matching the sibling Vircon32 build's own dialog) - but when a game was
+reached via `-g <NAME>` or a `.joy` file argument instead of the menu,
+there's no menu state to protect; skipping straight to quit (no dialog)
+on the first Start press is the correct equivalent here, not "show the
+dialog, then quit instead of returning to the menu" (which would still
+interrupt gameplay with an extra confirmation step cglp's own reference
+behavior never has either).
+
+Implemented as a new `gLaunchedDirectly` flag in `gamesMain.c`, set once
+via `gamesMain_setLaunchedDirectly()` (`gamesMain.h`) - called from each
+SDL port's own `main.c`, right after the real `gamesMain_launchGameDirect()`
+call in the `-g`/`.joy` branch specifically, NOT the other call site
+`-ms`'s `runBatchScreenshots()` uses (that path never reaches
+`gamesMain_dispatchFrame()`'s own interactive loop at all, so the flag
+would be meaningless there). `gamesMain_dispatchFrame()`'s own Start-
+button branch checks it before falling through to the normal
+`confirmingQuit` path; never cleared back to `false` afterward, matching
+`startgame`'s own permanence in cglp - quitting is the only way out of
+this mode by design, so there's no scenario needing to un-set it.
+
+Quitting itself needed one genuinely new cross-cutting piece:
+`machineDependent.h` had no "game world asks the platform to exit"
+concept at all before this (Vircon32 never needed one - no real OS
+process to quit). Added `md_requestQuit()`, implemented on both SDL ports
+by setting the same `gQuit` flag `sdlBackend_pollEvents()` already sets on
+a real window-close/`ButQuit` event - `sdlBackend_shouldQuit()` can't tell
+the two causes apart and doesn't need to. The Playdate port needed a
+real (no-op) stub too, same reasoning as `md_setFpsOverlayShowing()`
+above: it compiles shared `gamesMain.c` regardless of whether its own
+`main.c` ever calls into this particular path (no CLI/`-g`/`.joy` there
+at all, so it never will) - real Playdate hardware has no "quit the app"
+concept to begin with, so the stub is a genuine no-op, not a stand-in for
+some equivalent that port is missing.
+
 ## Status
 
 All 33 games ported, verified, and wired into the menu on all three ports

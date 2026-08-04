@@ -8,6 +8,13 @@
 // SDL3/SDL.h.
 // -----------------------------------------------------------------------------
 
+// Explicit, not relied-on-transitively: needed for bool below. A real
+// header (not just a "new enough GCC" keyword freebie) matters here since
+// this file is included directly by main.c, which may be built under a
+// strict C11 toolchain (see machineDependent.h's own note on the exact
+// same class of bug, found on the Playdate port's own CMAKE_C_STANDARD 11).
+#include <stdbool.h>
+
 // Registers every ported game (addGames()) and initializes the menu -
 // call once, before the main loop starts.
 void gamesMain_init();
@@ -50,6 +57,22 @@ int gamesMain_findGameByTitle( char* title );
 // picking it from the menu and pressing Fire) - used by -g/.joy-file direct
 // launch and by -ms's batch screenshot mode. No-op if idx is out of range.
 void gamesMain_launchGameDirect( int idx );
+
+// Marks the CURRENTLY running game as having been launched straight from
+// the command line (-g/.joy-file), not picked from the menu - call once,
+// right after the gamesMain_launchGameDirect() call that does that actual
+// launch (NOT the one -ms's batch screenshot mode also uses - that path
+// never reaches gamesMain_dispatchFrame()'s own interactive loop at all,
+// so this would be meaningless there). Matches crisp-game-lib-portable-
+// sdl's own cglpSDL3.c behavior (its own `startgame[0] != 0` check): once
+// set, pressing Start skips the quit-confirmation dialog entirely and
+// quits the app directly instead of returning to the menu - there's no
+// menu to return to in this mode, matching how the game was reached in
+// the first place. Never cleared afterward (same as cglp's own
+// `startgame`, which also stays set for the rest of the process once a
+// direct launch succeeds) - quitting is the only way out of this mode by
+// design, so there's no scenario where it would need to be un-set.
+void gamesMain_setLaunchedDirectly( bool direct );
 
 // Draws a small "fps: NN.NN" readout (black backing rect + white BIOS-font
 // text) in the screen's top-left corner - call once per real frame, after

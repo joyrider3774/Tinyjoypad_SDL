@@ -182,6 +182,15 @@ void md_setFpsOverlayShowing( bool showing, int width, int height )
     gFpsOverlayH = height;
 }
 
+// Reuses the same gQuit flag sdlBackend_pollEvents() sets on a real
+// window-close/ButQuit event (see this file's own "Shared platform state"
+// section) - sdlBackend_shouldQuit() (main.c's own loop condition) can't
+// tell the two causes apart and doesn't need to.
+void md_requestQuit()
+{
+    gQuit = true;
+}
+
 #define GLOW_DOWNSCALE_FACTOR 8
 #define GLOW_INTENSITY 140 // alpha, 0-255
 

@@ -99,6 +99,18 @@ void md_setDialogShowing( bool showing );
 // drawn this frame.
 void md_setFpsOverlayShowing( bool showing, int width, int height );
 
+// Requests the app quit at the top of the next real frame - the game-world
+// side's own equivalent of the platform side's window-close/F4 handling
+// (gamesMain_dispatchFrame()'s own Start-button handling calls this
+// directly when gamesMain_setLaunchedDirectly() marked the current game as
+// launched via -g/.joy, skipping the quit-confirmation dialog entirely -
+// see that function's own comment in gamesMain.h for why). Vircon32 never
+// needed a "game world requests the emulator/BIOS process exit" concept at
+// all (no real OS process to quit), so - like md_setInGame()/
+// md_setDialogShowing() above - this is a genuinely new, SDL-platform-
+// specific addition, not a port of anything.
+void md_requestQuit();
+
 // clears the screen to black - called once at the start of every game frame,
 // before that frame's md_drawColumn() calls
 void md_beginFrame();

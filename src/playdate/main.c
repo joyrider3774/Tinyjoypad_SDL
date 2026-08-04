@@ -113,6 +113,18 @@ void md_setDialogShowing( bool showing ) { (void)showing; }
 // real no-op definition is needed to link.
 void md_setFpsOverlayShowing( bool showing, int width, int height ) { (void)showing; (void)width; (void)height; }
 
+// No -g/.joy-file direct launch on this port at all (no CLI, no shell to
+// launch from - see this file's own header comment's own CLI-flag scope
+// list), so gamesMain_setLaunchedDirectly() is never called here and this
+// should never actually run - but gamesMain.c's own dispatch (compiled as
+// part of this port's own shared ../gameworld build regardless of whether
+// anything here calls it) still references this symbol, same reasoning as
+// md_setFpsOverlayShowing() just above. Real Playdate hardware has no
+// "quit the app" concept anyway (Menu button/A+B+Up+Right chord both
+// return to THIS port's own menu, they don't exit) - a genuine no-op, not
+// a stand-in for some equivalent this port doesn't have yet.
+void md_requestQuit() {}
+
 void md_beginFrame()
 {
     // kColorBlack background / kColorWhite "on" bit (md_drawColumn() below)

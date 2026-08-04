@@ -384,7 +384,10 @@ int main( int argc, char** argv )
     {
         int idx = gamesMain_findGameByTitle( startGameTitle );
         if( idx != -1 )
-          gamesMain_launchGameDirect( idx );
+        {
+            gamesMain_launchGameDirect( idx );
+            gamesMain_setLaunchedDirectly( true );
+        }
         else
           SDL_Log( "No game titled '%s' found - showing the menu instead.\n", startGameTitle );
     }

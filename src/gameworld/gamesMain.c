@@ -37,6 +37,17 @@ bool prevStart = false;
 
 int currentGameIndex = -1;
 
+// Set once by gamesMain_setLaunchedDirectly() when the current game was
+// reached via -g/.joy-file instead of the menu - see that function's own
+// header comment (gamesMain.h) for why Start then skips the confirm
+// dialog and quits directly, and why this is never cleared back to false.
+bool gLaunchedDirectly = false;
+
+void gamesMain_setLaunchedDirectly( bool direct )
+{
+    gLaunchedDirectly = direct;
+}
+
 void drawConfirmQuitDialog()
 {
     int boxX = MD_DIALOG_X, boxY = MD_DIALOG_Y, boxW = MD_DIALOG_W, boxH = MD_DIALOG_H;
@@ -120,6 +131,15 @@ void gamesMain_dispatchFrame()
         }
 
         drawConfirmQuitDialog();
+    }
+    else if( currentGameIndex != -1 && justStarted && gLaunchedDirectly )
+    {
+        // No menu to return to in this mode (see gamesMain_setLaunchedDirectly()'s
+        // own comment) - matches crisp-game-lib-portable-sdl's own
+        // cglpSDL3.c behavior for the same -g/.cgl-file case (its own
+        // `startgame[0] != 0` branch quits directly too, with no
+        // confirmation dialog at all there either).
+        md_requestQuit();
     }
     else if( currentGameIndex != -1 && justStarted )
     {

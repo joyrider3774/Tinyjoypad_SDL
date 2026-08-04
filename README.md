@@ -123,7 +123,10 @@ file itself as a positional argument to launch straight into that game).
 | Mute / unmute sound | S | North button (Y on Xbox) |
 
 The quit-confirmation dialog (Start, mid-game) freezes the current game
-and asks YES/NO before returning to the menu. The glow/CRT/pixel-grid cycle is a single button
+and asks YES/NO before returning to the menu - unless the game was
+launched directly (`-g <NAME>` or a `.joy` file), in which case there's no
+menu to return to, so Start quits the app immediately instead, with no
+dialog. The glow/CRT/pixel-grid cycle is a single button
 stepping through 5 combinations (none → pixel-grid+glow → pixel-grid →
 CRT scanlines → glow alone → back to none) and only has any visible
 effect during actual gameplay, not on the menu screen. Fullscreen/volume/
