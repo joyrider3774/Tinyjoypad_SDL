@@ -1066,10 +1066,10 @@ tracked - revisit this section as new work starts.
 
 ## References
 
-- [tinyjoypad_vircon32/CLAUDE.md](../tinyjoypad_vircon32/CLAUDE.md) - the
-  full per-game porting/bug-fix/optimization history this project's own
-  game code inherited unchanged.
-- [tinyjoypad_vircon32/VIRCON32_C_DIALECT.md](../tinyjoypad_vircon32/VIRCON32_C_DIALECT.md) -
+- [tinyjoypad_vircon32/CLAUDE.md](https://github.com/joyrider3774/tinyjoypad_vircon32/blob/main/CLAUDE.md) -
+  the full per-game porting/bug-fix/optimization history this project's
+  own game code inherited unchanged.
+- [tinyjoypad_vircon32/VIRCON32_C_DIALECT.md](https://github.com/joyrider3774/tinyjoypad_vircon32/blob/main/VIRCON32_C_DIALECT.md) -
   the source dialect this project's own "Dialect conversion" section
   above converts *back out of*.
 - https://www.tinyjoypad.com/tinyjoypad_attiny85 - the original games.

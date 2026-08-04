@@ -1,7 +1,7 @@
 # Optimizations
 
 This project's cost model is genuinely different from the sibling
-`tinyjoypad_vircon32` build's own [OPTIMIZATIONS.md](../tinyjoypad_vircon32/OPTIMIZATIONS.md),
+`tinyjoypad_vircon32` build's own [OPTIMIZATIONS.md](https://github.com/joyrider3774/tinyjoypad_vircon32/blob/main/OPTIMIZATIONS.md),
 so this file isn't a copy of it with the numbers changed - it's a
 different set of concerns entirely.
 

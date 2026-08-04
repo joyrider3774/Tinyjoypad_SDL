@@ -174,6 +174,15 @@ on the command line still cover fullscreen/no-sound at launch time.
 
 ## Credits
 
+- [tinyjoypad_vircon32](https://github.com/joyrider3774/tinyjoypad_vircon32) -
+  the original Vircon32 port this project is itself ported from: every
+  game's own C logic (`src/gameworld/games/`), already ported once from
+  the original ATtiny85 sources and already bug-fixed through its own
+  extensive play-testing history, was carried over here essentially
+  unchanged - only a mechanical dialect conversion (see `CLAUDE.md`)
+  touched it to make it build as standard C instead of Vircon32's own
+  restricted dialect. This project's own platform layer (SDL3/SDL2/
+  Playdate) is new; the game code underneath it is not.
 - [Vircon32](https://www.vircon32.com/) - the fantasy console the game
   logic here was originally ported through. This project's own menu/
   dialog text is drawn with a faithful reproduction of Vircon32's real
@@ -212,7 +221,7 @@ comment in `src/gameworld/games/`.
 - [OPTIMIZATIONS.md](OPTIMIZATIONS.md) - performance notes specific to
   this SDL3 build (a real desktop CPU/GPU, not Vircon32's fixed 250,000-
   cycle/frame budget - a genuinely different cost model).
-- [tinyjoypad_vircon32/CLAUDE.md](../tinyjoypad_vircon32/CLAUDE.md) - the
-  full per-game porting history (every game-logic bug found and fixed,
+- [tinyjoypad_vircon32/CLAUDE.md](https://github.com/joyrider3774/tinyjoypad_vircon32/blob/main/CLAUDE.md) -
+  the full per-game porting history (every game-logic bug found and fixed,
   the AVR-vs-Vircon32 dialect bug family, per-game optimization passes)
   that this project inherited along with the ported C code itself.
