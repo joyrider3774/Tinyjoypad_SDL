@@ -1100,6 +1100,56 @@ project) - worth clarifying with the user whether it should be cleaned
 up or left alone, since its actual status/purpose wasn't established
 this session.
 
+## Tiny Missile: `ATTACK_WEAPON()`'s burst-fire bug traced and fixed (ported from the sibling Vircon32 build)
+
+A direct question on the Vircon32 sibling project ("verify what happened
+related to available bullets/rockets in tiny missile when main base got
+hit") led to re-tracing `ARMY_TMISSILE::ATTACK_WEAPON()`
+(`CLASS_TMISSILE.cpp:44-54`, triggered from `DOME_COLLISION()` when an
+incoming missile's `END_X` lands in the crosshair/main-base zone
+`(54,73)`) character-by-character against the real upstream source -
+this port's own existing code comment (and the fix it justified,
+inherited from the same earlier session as the Vircon32 build) turned
+out to have the upstream behavior backwards.
+
+Upstream: `if(ROCKET>0){while(1){if(ROCKET>0){USE_WEAPON();...}else{goto
+Exit_;}}}else{if(SPARE>0){SPARE--;SNDBOX(3);}}`. The `while(1)` loop's own
+`ROCKET>0` check runs *before* every `USE_WEAPON()` call, so
+`USE_WEAPON()` is only ever invoked while `ROCKET` is already nonzero -
+its own internal `SPARE`-refill branch (taken only when `ROCKET` is
+*already* 0 at the moment it's called) is unreachable from this specific
+loop. The burst just drains whatever's left in the *current* clip (up to
+10 shots) and stops - it never reaches into `SPARE` when the clip had
+rounds in it. Only if the clip was already empty at the moment of the
+hit does upstream take a single defensive shot straight from `SPARE`, no
+refill loop at all.
+
+This port's `tmisAttackWeaponStep()` (`gameTinyMissile.c`) instead called
+`tmisArmyUseWeapon()` unconditionally every tick once a burst with a
+nonzero starting clip began, with no per-tick `tmisArmyRocket > 0` gate
+of its own - so once the clip actually drained to 0 mid-burst,
+`tmisArmyUseWeapon()`'s own refill branch fired and the burst kept going,
+draining the *entire* arsenal (current clip + every spare clip) on a
+single hit, rather than just the current clip. **Fixed** by adding back
+the per-tick `tmisArmyRocket > 0` check before calling
+`tmisArmyUseWeapon()` inside the burst-active branch, matching upstream's
+own loop gating exactly - the burst now correctly stops the instant the
+starting clip is exhausted, never touching `SPARE` in that path.
+
+Ported directly from the identical fix already verified in the sibling
+Vircon32 build (same shared-origin bug, `tmisAttackWeaponStep()` is
+essentially byte-identical between the two projects). Verified with a
+clean rebuild of both `src/sdl3/` and `src/sdl2/` (both link successfully
+with no new warnings) - this fix lives in the shared `src/gameworld/`
+code, so `src/playdate/` picks it up automatically too, though that port
+wasn't independently rebuilt this session. Not verified by actual
+play-test on this project (no audio/graphics-capable run performed) -
+the Vircon32 sibling's own version of this same fix *was* Puppeteer-
+verified there (crosshair movement, firing, rocket-trail rendering, no
+crash after repeated hits), which is reasonable indirect confidence given
+the logic is identical, but worth a direct play-test here too if time
+allows.
+
 ## Status
 
 All 33 games ported, verified, and wired into the menu on all three ports
