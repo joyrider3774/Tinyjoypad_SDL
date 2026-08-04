@@ -1,13 +1,13 @@
 # TinyJoypad → SDL
 
-A native SDL3 port bringing **33 games**, originally written for the
+A native SDL3 port bringing **40 games**, originally written for the
 [TinyJoypad](https://www.tinyjoypad.com/) ATtiny85 + SSD1306 128x64 OLED
 handheld, behind one shared game-select menu, running as a plain desktop
 executable - no emulator required.
 
 Two more ports also live in this same repo, alongside the primary SDL3
 port in `src/sdl3/`, all three sharing one `src/gameworld/` codebase (all
-33 games, the menu, the shims):
+40 games, the menu, the shims):
 - **SDL2** (`src/sdl2/`) - built by porting `src/sdl3/`'s own platform
   files API-call-by-API-call, then verified functionally identical (every
   behavioral constant, every input mapping table, both passing the same
@@ -171,6 +171,13 @@ on the command line still cover fullscreen/no-sound at launch time.
 | Run Dude Run | Ilya Titov | Non-commercial, with attribution | [AttinyArcade](https://github.com/webboggles/AttinyArcade) |
 | Four in a Row | Unknown | None specified | [tiny-handheld](https://github.com/Yevgeniy-Olexandrenko/tiny-handheld) |
 | Dino Game | tiny-handheld project (original) | None specified | [tiny-handheld](https://github.com/Yevgeniy-Olexandrenko/tiny-handheld) |
+| SnakeGame85 | Terezaza | GPLv3 | [SnakeGame85](https://github.com/terezaza/SnakeGame85) |
+| Jump Slime | Kondolab | None specified | [note.com](https://note.com/kondolab/n/ndc93ac31e555) |
+| TinyRoG | Kondolab | None specified | [note.com](https://note.com/kondolab/n/n1806e4234495) |
+| TinY Fi | Kondolab | None specified | [note.com](https://note.com/kondolab/n/n2c96413eaa23) |
+| Breakout | Ilya Titov | Non-commercial, with attribution | [AttinyArcade](https://github.com/webboggles/AttinyArcade) |
+| Space Attack | Andy Jackson | Non-commercial, with attribution | [Attiny-Arduino-Games](https://github.com/andyhighnumber/Attiny-Arduino-Games) |
+| Falling Blocks | Andy Jackson | Non-commercial, with or without attribution | [Attiny-Arduino-Games](https://github.com/andyhighnumber/Attiny-Arduino-Games) |
 
 ## Credits
 

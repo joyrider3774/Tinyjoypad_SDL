@@ -67,4 +67,32 @@ void addGames()
     // function unconditionally at the end (no dirty-flag skipping
     // anywhere in this port), so NULL here is correct, not an oversight.
     addGame( "TINY DUNGEON", "SVEN B / LORANDIL", &gameTinyDungeon_init, &gameTinyDungeon_update, NULL );
+    // SnakeGame85: gameSnakeGame85_update() calls snkRenderImage()
+    // unconditionally at the end of every single state branch (no dirty-
+    // flag/skip-redraw path anywhere in this port), so NULL here is
+    // confirmed correct, not an oversight.
+    addGame( "SNAKEGAME85", "TEREZAZA", &gameSnakeGame85_init, &gameSnakeGame85_update, NULL );
+    // Jump Slime: gameJumpSlime_update() calls jslmRender() unconditionally
+    // at the end of every single state branch (no dirty-flag/skip-redraw
+    // path anywhere in this port), so NULL here is confirmed correct, not
+    // an oversight.
+    addGame( "JUMP SLIME", "KONDOLAB", &gameJumpSlime_init, &gameJumpSlime_update, NULL );
+    // TinyRoG: gameTinyRoG_update() calls trogRenderStage()/trogRenderCave()
+    // unconditionally at the end of every single state branch (no dirty-
+    // flag/skip-redraw path anywhere in this port), so NULL here is
+    // confirmed correct, not an oversight.
+    addGame( "TINYROG", "KONDOLAB", &gameTinyRoG_init, &gameTinyRoG_update, NULL );
+    // TinY Fi: gameTinYFi_update() calls tfiRender() unconditionally at
+    // the end of every single state branch (no dirty-flag/skip-redraw
+    // path anywhere in this port), so NULL here is confirmed correct, not
+    // an oversight.
+    addGame( "TINY FI", "KONDOLAB", &gameTinYFi_init, &gameTinYFi_update, NULL );
+    addGame( "BREAKOUT", "ILYA TITOV", &gameBreakout_init, &gameBreakout_update, &gameBreakout_forceRedraw );
+    addGame( "SPACE ATTACK", "ANDY JACKSON", &gameSpaceAttack_init, &gameSpaceAttack_update, &gameSpaceAttack_forceRedraw );
+    // Menu title deliberately avoids the trademarked falling-block puzzle
+    // genre name this game is a clone of - the game's own attract screen
+    // originally spelled it out via a plain font-rendered string (not
+    // baked bitmap data), so that string was also changed in the source
+    // (see gameFallingBlocks.c) rather than left as shipped.
+    addGame( "FALLING BLOCKS", "ANDY JACKSON", &gameFallingBlocks_init, &gameFallingBlocks_update, &gameFallingBlocks_forceRedraw );
 }

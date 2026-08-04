@@ -134,4 +134,28 @@ void gameTinyPlaque_forceRedraw();
 void gameTinyDungeon_init();
 void gameTinyDungeon_update();
 
+void gameSnakeGame85_init();
+void gameSnakeGame85_update();
+
+void gameJumpSlime_init();
+void gameJumpSlime_update();
+
+void gameTinyRoG_init();
+void gameTinyRoG_update();
+
+void gameTinYFi_init();
+void gameTinYFi_update();
+
+void gameBreakout_init();
+void gameBreakout_update();
+void gameBreakout_forceRedraw();
+
+void gameSpaceAttack_init();
+void gameSpaceAttack_update();
+void gameSpaceAttack_forceRedraw();
+
+void gameFallingBlocks_init();
+void gameFallingBlocks_update();
+void gameFallingBlocks_forceRedraw();
+
 #endif

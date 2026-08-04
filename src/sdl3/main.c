@@ -196,6 +196,55 @@ static ScreenshotScript screenshotScriptFor( char* title )
         s.gapFrames = 10;
         s.finalWaitFrames = 200;
     }
+    // SNAKEGAME85 never reads Fire at all (see this game's own header
+    // comment - all 4 directions double as "any button" to start/restart,
+    // matching upstream's own checkButtonStateChange()), so the default
+    // Fire-tap script never leaves the attract screen (confirmed: showed
+    // the "PRESS ANY BUTTON" title screen). tapCount=0 skips the Fire-tap
+    // loop entirely, leaving only the held-Up final wait - Up alone both
+    // starts the game (attract screen) and then keeps the snake actually
+    // moving during real gameplay.
+    else if( SDL_strcmp( title, "SNAKEGAME85" ) == 0 )
+    {
+        s.tapCount = 0;
+        s.finalWaitFrames = 90;
+        s.holdUp = true;
+    }
+    // BREAKOUT's paddle only reads Left/Right (no Fire-based movement,
+    // and this batch-screenshot script has no held-Left/Right capability
+    // the way it does for Up) - with the paddle left stationary, the
+    // default script's longer capture window reliably outlives the ball
+    // falling straight past it (confirmed: showed "GAME OVER SCORE: 1").
+    // One tap to leave ATTRACT, then a short wait - just long enough to
+    // render a real PLAYING frame with blocks/paddle/ball all visible,
+    // short enough the stationary paddle hasn't been missed yet.
+    else if( SDL_strcmp( title, "BREAKOUT" ) == 0 )
+    {
+        s.tapCount = 4;
+        s.gapFrames = 15;
+        s.finalWaitFrames = 10;
+    }
+    // BAT BONANZA's own left paddle only reads Up/Down (or Left/Right) -
+    // this script sends neither, so it sits fixed wherever it clamps to
+    // once PLAYING starts. The default script's own long total wait
+    // (4 taps * 90-frame gaps, no cap on PLAYING time) reliably outlives
+    // a real point being scored, landing on PONG_STATE_ROUND_FLASH
+    // instead - which only blinks the two score digits, no bats/ball at
+    // all (confirmed: that's exactly what the shipped screenshot/
+    // thumbnail show). PONG_STATE_COUNTDOWN itself takes a fixed 180 real
+    // frames before PLAYING even starts - a 60-frame wait BEFORE the
+    // first decrement, then 60 more for each of "3"->"2"->"1" (a first
+    // attempt here budgeted only 120, missing that leading wait, and
+    // landed on "GET READY -- 1" instead of real gameplay). One tap to
+    // leave ATTRACT, then just enough wait to clear that countdown plus a
+    // small buffer, short enough the stuck paddle hasn't missed a real
+    // point yet.
+    else if( SDL_strcmp( title, "BAT BONANZA" ) == 0 )
+    {
+        s.tapCount = 1;
+        s.gapFrames = 10;
+        s.finalWaitFrames = 190;
+    }
 
     return s;
 }

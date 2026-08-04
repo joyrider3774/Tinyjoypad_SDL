@@ -161,6 +161,19 @@ void gamesMain_dispatchFrame()
         {
             currentGameIndex = chosen;
             md_armInputFireGate();
+
+            // Clear to black once, immediately on selection and before
+            // the chosen game's own init() runs any of its own code -
+            // some games' init() doesn't necessarily draw a full frame
+            // of its own right away (state setup only, first real draw
+            // deferred to the next update() call), and this project's
+            // own persistent gScreen surface behaves exactly like real
+            // SSD1306 VRAM does when nothing redraws it - without this,
+            // the last menu frame would otherwise still be sitting on
+            // screen for that one gap tick instead of a clean black
+            // transition.
+            md_beginFrame();
+
             menu_getGame( chosen )->init();
         }
     }
@@ -245,6 +258,16 @@ void gamesMain_launchGameDirect( int idx )
 
     currentGameIndex = idx;
     md_armInputFireGate();
+
+    // Same reasoning as gamesMain_dispatchFrame()'s own menu-selection
+    // branch above - matters even more here, since this same function
+    // also backs -ms's batch screenshot mode, which launches every game
+    // back-to-back into the same persistent gScreen: without this, a game
+    // whose own init() doesn't draw a full frame immediately would have
+    // its very first screenshot capture the PREVIOUS game's leftover
+    // frame instead of a clean black start.
+    md_beginFrame();
+
     menu_getGame( idx )->init();
 }
 

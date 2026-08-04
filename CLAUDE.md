@@ -2,7 +2,7 @@
 
 ## Goal
 
-A native SDL3 port of the sibling `tinyjoypad_vircon32` project (33
+A native SDL3 port of the sibling `tinyjoypad_vircon32` project (40
 TinyJoypad games behind one shared menu, originally targeting the
 Vircon32 fantasy console) - same games, same menu shape, but as a plain
 desktop executable with no emulator dependency. This file is project
@@ -48,7 +48,7 @@ Two separate compiled halves, communicating only through
 `portVircon32.c`:
 
 - **"Game world"** (`src/gameworld/`) - `avrCompat.h` + `tinyJoypadShim`/
-  `obonoCoreShim` + `menu.c`/`menuGameList.c` + all 33 `games/*.c` files.
+  `obonoCoreShim` + `menu.c`/`menuGameList.c` + all 40 `games/*.c` files.
   **Never includes `SDL.h`** (or anything that would pull in `<stdint.h>`,
   which would conflict with `avrCompat.h`'s own `uint8_t`-aliased-to-`int`
   typedefs if both were ever visible in the same translation unit).
@@ -80,7 +80,7 @@ Two separate compiled halves, communicating only through
     functions, no shared types, no cross-game calls (every game already
     has fully-unique prefixed names, so there's nothing else for a
     per-game header to usefully declare). Instead, `games/games.h` is ONE
-    shared header declaring that same tiny surface for all 33 games -
+    shared header declaring that same tiny surface for all 40 games -
     `menuGameList.c`'s own `addGames()` is the only file that includes it
     (it's the only place that needs every game's address at once, to
     build the `Game` table `menu_getGame()` indexes into). Individual
@@ -137,7 +137,7 @@ project's own layout (`src/games/` + `src/lib/` shared, then one directory
 per port - `src/cglpSDL3/`, `src/cglpSDL2/`, `src/cglpPlaydate/`,
 `src/cglpPyBadge/`, ... - each with its own standalone `CMakeLists.txt`),
 adopted here on direct user request specifically so a second (and third)
-port could reuse `src/gameworld/` (all 33 games included) with minimal or
+port could reuse `src/gameworld/` (all 40 games included) with minimal or
 no changes, by just adding a new `src/<portname>/` directory alongside
 `src/sdl3/`, with its own `CMakeLists.txt` globbing `../gameworld` the same
 way `src/sdl3/CMakeLists.txt` already does - no shared root build file to
@@ -1273,9 +1273,88 @@ the Vircon32 sibling's own version *was* directly play-tested and
 confirmed by the user, which is reasonable confidence given the logic is
 byte-identical, but worth a direct play-test here too if time allows.
 
+## Seven more games backported from upstream
+
+The sibling `tinyjoypad_vircon32` project added 7 new games in its own
+history after this project's initial 33-game port was complete
+(SnakeGame85, Jump Slime, TinyRoG, TinY Fi, Breakout, Space Attack,
+Falling Blocks - see that project's own `CLAUDE.md` for each one's real
+porting history, author research, and dialect-conversion notes, per this
+file's own "history lives in the sibling project" policy above). Brought
+over here the same way Phase 4's original ~30 games were: dispatched to
+7 parallel background agents (one per game, given the sibling's own
+already-correct Vircon32-dialect source plus this project's own
+established dialect-conversion recipe above), then independently
+re-verified afterward rather than trusted at face value - a single clean
+sequential rebuild (the 7 parallel agents' own build attempts collided
+with each other on the shared `build/` directory mid-flight, an expected
+side effect of running that many concurrent `cmake`/`ninja` invocations,
+not a problem with any port itself) confirmed all 7 compile clean with no
+leftover Vircon32-dialect syntax. Registered centrally in `games.h`/
+`menuGameList.c` afterward (each agent's own task explicitly excluded
+touching those two shared files, to avoid 7-way merge conflicts).
+
+Two of the 7 needed their own `-ms` screenshot-script tuning
+(`screenshotScriptFor()` in each SDL port's own `main.c`), found the same
+way every prior per-game screenshot fix in this project was found -
+capturing, then actually looking at the result:
+
+- **SnakeGame85** never reads Fire at all (see the sibling's own header
+  comment - all 4 directions double as "any button" to start/restart) -
+  the default Fire-tap script never left the attract screen. Fixed with
+  `tapCount=0` (skips the Fire-tap loop entirely) plus `holdUp=true` -
+  Up alone both starts the game and keeps the snake moving during real
+  play afterward.
+- **Breakout** hit `GAME OVER` before the capture, with only a single
+  Fire tap - a genuine, non-obvious interaction bug, not just "needs a
+  longer wait" (confirmed by raising the wait budget repeatedly with no
+  change: it never left the attract screen at all, at any length).
+  Breakout runs its own real game logic on a throttled ~40/60 fixed-
+  timestep accumulator (`brkTickAccum`), meaning **not every real engine
+  frame calls `isFirePressed()`** - roughly 1 real frame in 3 is a no-op
+  for this game's own purposes. `gamesMain_launchGameDirect()`'s own
+  `md_armInputFireGate()` (see machineDependent.h) only disarms the next
+  time `md_inputFireFrames()` is actually *called* while released - and
+  the screenshot script's own single-frame Fire-press pulse (one
+  `simulateFireFrame(true)` call, immediately followed by `false`) landed
+  on the *one* real engine frame that happened to be a throttled-away
+  no-op for Breakout specifically, so the game's own code never saw
+  `fireDown=1` at all - confirmed directly by a temporary debug print
+  (`gameBreakout.c`'s own `isFirePressed()` call site, removed again
+  afterward) showing `fireDown=0` for the entire capture window, every
+  single time, regardless of how long the window was. Fixed by widening
+  the odds instead of the wait: `tapCount=4` (back to the shared
+  default, giving 4 independent Fire-press pulses instead of 1 - each a
+  fresh independent chance to land on a real tick after the gate's
+  already disarmed) with a short `gapFrames`/`finalWaitFrames` budget
+  (so the capture still lands soon after reaching `PLAYING`, before an
+  unmoved paddle lets the ball fall past - this game's own paddle only
+  reads Left/Right, which the screenshot-script infrastructure has no
+  "hold" support for the way it does for Up).
+
+Also ported the sibling's own `b75fccf` fix ("clear screen to black once
+after game launch") into `gamesMain.c`: `md_beginFrame()` now runs once,
+immediately after a game is selected/launched and before that game's own
+`init()` runs, both in `gamesMain_dispatchFrame()`'s own menu-selection
+branch (matching the sibling's exact fix) and in
+`gamesMain_launchGameDirect()` (the `-g`/`.joy`/`-ms` direct-launch path
+the sibling has no equivalent of, added here for the same reason -
+`-ms`'s own batch mode launches every game back-to-back into the same
+persistent `gScreen`, so a game whose `init()` doesn't draw a full frame
+right away would otherwise have its very first screenshot capture the
+*previous* game's leftover frame instead of a clean black start).
+
+New thumbnails (`thumb_33.bmp`..`thumb_39.bmp`, regenerated into
+`thumbnailData.h` via `tools/gen_thumbnails.py`) and Playdate PNG
+thumbnails (`thumb_33.png`..`thumb_39.png`, same `magick -sample 128x64`
+point-sample process) were generated from real `-ms` captures of actual
+gameplay, not placeholder art - verified by eye (`Read`-ing each
+converted screenshot) before cropping, the same "check the actual
+screenshot" standard every other thumbnail in this project was held to.
+
 ## Status
 
-All 33 games ported, verified, and wired into the menu on all three ports
+All 40 games ported, verified, and wired into the menu on all three ports
 (`src/sdl3/`, `src/sdl2/`, `src/playdate/`); the menu shows real gameplay
 thumbnails on every port. CLI parameters, FPS display, and the batch-
 screenshot tool are in place on both SDL ports; all three presentation
