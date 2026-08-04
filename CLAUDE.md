@@ -1035,6 +1035,71 @@ at all, so it never will) - real Playdate hardware has no "quit the app"
 concept to begin with, so the stub is a genuine no-op, not a stand-in for
 some equivalent that port is missing.
 
+## `md_playTone()` became genuinely multi-voice in `sdl3`/`sdl2` (matching the same fix in the sibling Vircon32 build)
+
+Ported directly from the Vircon32 sibling project's own fix, made in
+response to a direct request there ("make pacman eating pills audible
+while the alarm sounds goes off... really don't gate it to single
+channel calls") - `md_playTone()` in both `src/sdl3/sdlBackend.c` and
+`src/sdl2/sdlBackend.c` used a single shared `gToneActive`/`gToneFreq`/
+`gTonePhase` scalar, so any two genuinely concurrent cues (Tiny Pacman's
+continuously-retriggered power-pellet siren vs. its own dot-eaten/
+ghost-eaten SFX, or any other game's own overlapping sounds) always cut
+each other off instead of both being audible - a property of TinyJoypad's
+*original* single-piezo-buzzer hardware that `md_playTone()` was
+enforcing unnecessarily, not something every game's own call site
+actually needs.
+
+Unlike Vircon32 (whose fix turned out to be almost free - PlayNote's own
+`playnote_start()` already picks a free hardware channel internally, so
+the fix there was just to stop overriding that with a manually-tracked
+single voice), this backend's own audio model has no channel abstraction
+at all - one plain software square-wave oscillator computed sample-by-
+sample in `sdlAudioCallback()`. Fixed by turning the single
+`gToneActive`/`gToneFreq`/`gTonePhase`/`gToneStopFrame` scalars into
+16-element arrays (`AUDIO_MAX_VOICES`, matching Vircon32's own PlayNote
+voice count for parity, though nothing here is hardware-limited to that
+number) - `md_playTone()` finds the first free slot (or steals slot 0 if
+all 16 are somehow busy, rather than silently dropping the note),
+`md_updateAudio()` expires each slot independently, and the audio
+callback sums every active voice's own square wave per sample instead of
+reading one. `AUDIO_AMPLITUDE` (10000, well under `Sint16`'s ±32767
+range) already left enough headroom for several simultaneous voices to
+sum without clipping in the common case (this cartridge rarely has more
+than 2 genuinely concurrent cues) - a final hard clamp handles the rare
+case where more do coincide, the same "accept some clipping on overlap"
+tradeoff already made for this being a harmonically-buzzy square wave in
+the first place, rather than building dynamic per-sample rescaling for
+an edge case none of the 33 games actually hits.
+
+A `freq<=0` "rest" call is now a genuine no-op (matches the Vircon32
+fix's own reasoning) - it doesn't grab a voice or stop anything, so
+whatever's independently playing on other voices is unaffected; the
+previous single-voice version used a rest to deliberately silence
+whatever was currently playing, which no longer makes sense once "what's
+currently playing" can mean several independent things at once.
+
+Verified with a full clean rebuild of both `src/sdl3/` and `src/sdl2/`
+(`cmake -B build -G Ninja -DUSE_VENDORED_SDL=1 && cmake --build build`
+from each port's own directory - both linked successfully, no new
+warnings) - not verified by ear this session (no audio-capable run
+performed), so worth a real play-test to confirm Tiny Pacman's siren and
+eating-SFX are actually both audible together as intended. The Playdate
+port (`src/playdate/main.c`) was not touched - it uses a single
+`PDSynth*`, "one synth, not a pool" by its own existing comment, a
+different fix shape again (building a synth pool, which the SDK supports
+and a sibling project's own `cglpPlaydate.c` already demonstrates) - out
+of scope unless asked.
+
+**Note on repo location**: this fix was first mistakenly applied to
+`C:\github\tinyjoypad_SDL3` (lowercase, "3" suffix) - a different,
+apparently-stale directory with an identical-looking codebase, not this
+project. Caught and corrected directly by the user. That other
+directory still has the same edits applied (harmless, but not the real
+project) - worth clarifying with the user whether it should be cleaned
+up or left alone, since its actual status/purpose wasn't established
+this session.
+
 ## Status
 
 All 33 games ported, verified, and wired into the menu on all three ports

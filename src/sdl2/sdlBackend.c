@@ -538,11 +538,26 @@ void md_armInputFireGate()
 #define AUDIO_AMPLITUDE   10000
 
 static SDL_AudioDeviceID gAudioDevice  = 0;
-static bool  gToneActive   = false;
-static float gToneFreq     = 0.0f;
-static float gTonePhase    = 0.0f;
 static int   gFrameCounter = 0;
-static int   gToneStopFrame = -1;
+
+// A bank of independent voices, not a single shared tone - matches the
+// sibling Vircon32 build's own md_playTone() fix (see its own extensive
+// header comment in portVircon32.c) and this project's own sdl3/
+// sdlBackend.c, ported the same way here: TinyJoypad's original hardware
+// is a single piezo buzzer, so every game's own Sound()/playTone() call
+// site was written assuming "this replaces whatever's currently
+// sounding," but that's a property of the ORIGINAL hardware, not
+// something this function needs to enforce - a single shared
+// gToneActive/gToneFreq/gTonePhase meant two genuinely concurrent cues
+// (e.g. Tiny Pacman's continuously-retriggered power-pellet siren and its
+// dot-eaten/ghost-eaten SFX) could never be heard at once, cutting each
+// other off instead. Fixed by finding a free voice slot per call and
+// mixing every active voice's own square wave together in the callback.
+#define AUDIO_MAX_VOICES 16
+static bool  gToneActive[ AUDIO_MAX_VOICES ];
+static float gToneFreq[ AUDIO_MAX_VOICES ];
+static float gTonePhase[ AUDIO_MAX_VOICES ];
+static int   gToneStopFrame[ AUDIO_MAX_VOICES ];
 
 // Master volume/mute - live-adjustable via BUTTON_VOLUP/BUTTON_VOLDOWN
 // (PageUp/PageDown, ButRB/ButLB) and BUTTON_SOUNDSWITCH (S, ButY), edge-
@@ -568,36 +583,46 @@ static void SDLCALL sdlAudioCallback( void* userdata, Uint8* stream, int len )
 
     for( int i = 0; i < sampleCount; i++ )
     {
-        if( gToneActive && gToneFreq > 0.0f && !gMuted )
+        // Square, not sine, per voice - matches the real hardware this
+        // shim's own Sound() comment describes ("a square wave toggled
+        // every (255-freq) microseconds", tinyJoypadShim.c), and the
+        // sibling Vircon32 build's own PlayNote library, which - though it
+        // technically supports any single-cycle waveform - ships and
+        // uses a SAW wavetable (sounds/wt_saw.wav) specifically because
+        // a pure sine has none of a buzzer's harmonic buzz. Both
+        // reference implementations are harmonically rich; a sine is
+        // not just a different timbre, it's frequently silent where
+        // they aren't: several games (e.g. gameTinyPacman.c's siren/
+        // pellet cues) call md_playTone() with very low nominal
+        // frequencies (2-20Hz) for very short durations - a sine barely
+        // completes a fraction of one cycle in that time (near-zero
+        // amplitude throughout, genuinely inaudible), whereas a square
+        // wave's hard 0->+-amplitude edge at tone-start/stop is itself
+        // an audible click regardless of the nominal frequency, same as
+        // a real piezo buzzer being switched on for a moment.
+        int mixed = 0;
+        if( !gMuted )
         {
-            // Square, not sine - matches the real hardware this shim's own
-            // Sound() comment describes ("a square wave toggled every
-            // (255-freq) microseconds", tinyJoypadShim.c), and the sibling
-            // Vircon32 build's own PlayNote library, which - though it
-            // technically supports any single-cycle waveform - ships and
-            // uses a SAW wavetable (sounds/wt_saw.wav) specifically because
-            // a pure sine has none of a buzzer's harmonic buzz. Both
-            // reference implementations are harmonically rich; a sine is
-            // not just a different timbre, it's frequently silent where
-            // they aren't: several games (e.g. gameTinyPacman.c's siren/
-            // pellet cues) call md_playTone() with very low nominal
-            // frequencies (2-20Hz) for very short durations - a sine barely
-            // completes a fraction of one cycle in that time (near-zero
-            // amplitude throughout, genuinely inaudible), whereas a square
-            // wave's hard 0->+-amplitude edge at tone-start/stop is itself
-            // an audible click regardless of the nominal frequency, same as
-            // a real piezo buzzer being switched on for a moment.
-            buffer[ i ] = (Sint16)( ( gTonePhase < (float)M_PI ? 1.0f : -1.0f )
-                * AUDIO_AMPLITUDE * gVolume );
+            for( int v = 0; v < AUDIO_MAX_VOICES; v++ )
+            {
+                if( !gToneActive[ v ] || gToneFreq[ v ] <= 0.0f )
+                  continue;
 
-            gTonePhase += 2.0f * (float)M_PI * gToneFreq / (float)AUDIO_SAMPLE_RATE;
-            if( gTonePhase >= 2.0f * (float)M_PI )
-              gTonePhase -= 2.0f * (float)M_PI;
+                mixed += (int)( ( gTonePhase[ v ] < (float)M_PI ? 1.0f : -1.0f )
+                    * AUDIO_AMPLITUDE * gVolume );
+
+                gTonePhase[ v ] += 2.0f * (float)M_PI * gToneFreq[ v ] / (float)AUDIO_SAMPLE_RATE;
+                if( gTonePhase[ v ] >= 2.0f * (float)M_PI )
+                  gTonePhase[ v ] -= 2.0f * (float)M_PI;
+            }
         }
-        else
-        {
-            buffer[ i ] = 0;
-        }
+
+        // AUDIO_AMPLITUDE(10000) leaves enough headroom under Sint16's
+        // +-32767 range for several simultaneous voices to sum cleanly -
+        // see sdl3/sdlBackend.c's own identical fix for the full reasoning.
+        if( mixed > 32767 ) mixed = 32767;
+        if( mixed < -32768 ) mixed = -32768;
+        buffer[ i ] = (Sint16)mixed;
     }
 }
 
@@ -639,14 +664,28 @@ void md_initAudio()
 
 void md_playTone( float freqHz, float durationSeconds )
 {
-    gToneActive = false;
-    gTonePhase = 0.0f;
-
+    // A rest (freq<=0) is a genuine no-op here, same as the Vircon32
+    // sibling's own fix - it doesn't stop anything, it just doesn't add a
+    // new voice, so whatever else is independently playing on other
+    // voices continues unaffected.
     if( freqHz <= 0.0f )
       return;
 
-    gToneFreq = freqHz;
-    gToneActive = true;
+    int slot = -1;
+    for( int v = 0; v < AUDIO_MAX_VOICES; v++ )
+    {
+        if( !gToneActive[ v ] )
+        {
+            slot = v;
+            break;
+        }
+    }
+    if( slot < 0 )
+      slot = 0; // all voices busy - steal the first one rather than silently dropping the note
+
+    gTonePhase[ slot ] = 0.0f;
+    gToneFreq[ slot ] = freqHz;
+    gToneActive[ slot ] = true;
 
     int durationFrames = (int)( durationSeconds * 60.0f );
     if( durationFrames < 1 )
@@ -668,23 +707,29 @@ void md_playTone( float freqHz, float durationSeconds )
     // this SDL2 port inherits the exact same fix, same root cause, since
     // main.c's own call order (gamesMain_dispatchFrame() before
     // md_updateAudio()) is unchanged between ports.
-    gToneStopFrame = gFrameCounter + durationFrames + 1;
+    gToneStopFrame[ slot ] = gFrameCounter + durationFrames + 1;
 }
 
 void md_stopTone()
 {
-    gToneActive = false;
-    gToneStopFrame = -1;
+    for( int v = 0; v < AUDIO_MAX_VOICES; v++ )
+    {
+        gToneActive[ v ] = false;
+        gToneStopFrame[ v ] = -1;
+    }
 }
 
 void md_updateAudio()
 {
     gFrameCounter++;
 
-    if( gToneActive && gToneStopFrame >= 0 && gFrameCounter >= gToneStopFrame )
+    for( int v = 0; v < AUDIO_MAX_VOICES; v++ )
     {
-        gToneActive = false;
-        gToneStopFrame = -1;
+        if( gToneActive[ v ] && gToneStopFrame[ v ] >= 0 && gFrameCounter >= gToneStopFrame[ v ] )
+        {
+            gToneActive[ v ] = false;
+            gToneStopFrame[ v ] = -1;
+        }
     }
 }
 
