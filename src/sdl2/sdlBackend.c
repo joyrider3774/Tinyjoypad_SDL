@@ -185,6 +185,23 @@ void md_setDialogShowing( bool showing )
     gDialogShowing = showing;
 }
 
+// Set by md_setFpsOverlayShowing() (gamesMain.c's own
+// gamesMain_drawFpsOverlay(), once per real frame that "-fps" is drawing
+// it) - same re-composite-on-top-of-the-effects idea as gDialogShowing
+// above, just for a rect whose width isn't a fixed compile-time constant
+// (it depends on the current FPS reading's own digit count), so it's
+// tracked here instead of a pair of #defines like MD_DIALOG_W/H.
+static bool gFpsOverlayShowing = false;
+static int  gFpsOverlayW = 0;
+static int  gFpsOverlayH = 0;
+
+void md_setFpsOverlayShowing( bool showing, int width, int height )
+{
+    gFpsOverlayShowing = showing;
+    gFpsOverlayW = width;
+    gFpsOverlayH = height;
+}
+
 #define GLOW_DOWNSCALE_FACTOR 8
 #define GLOW_INTENSITY 140 // alpha, 0-255
 
@@ -354,6 +371,17 @@ void md_endFrame()
         {
             SDL_Rect dialogRect = { MD_DIALOG_X, MD_DIALOG_Y, MD_DIALOG_W, MD_DIALOG_H };
             SDL_RenderCopy( gRenderer, gScreenTexture, &dialogRect, &dialogRect );
+        }
+
+        // Same idea, for the "-fps" overlay's own top-left rect (see
+        // machineDependent.h's own md_setFpsOverlayShowing() comment) -
+        // never overlaps the dialog box above (that one's centered, this
+        // one's pinned to (0,0)), so the two re-composites are independent
+        // and order between them doesn't matter.
+        if( gFpsOverlayShowing )
+        {
+            SDL_Rect fpsRect = { 0, 0, gFpsOverlayW, gFpsOverlayH };
+            SDL_RenderCopy( gRenderer, gScreenTexture, &fpsRect, &fpsRect );
         }
     }
 

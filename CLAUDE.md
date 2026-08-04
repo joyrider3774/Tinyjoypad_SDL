@@ -1000,7 +1000,11 @@ screenshot tool are in place on both SDL ports; all three presentation
 effects (glow, CRT scanlines, pixel-grid) are implemented there and cycle
 correctly via a single button, gated to gameplay only and skipped over the
 quit-confirmation dialog's own rect specifically (`md_setDialogShowing()`)
-while still applying to the rest of the frozen screen behind it. Packaging
+and the `-fps` overlay's own rect (`md_setFpsOverlayShowing()`, same
+re-composite-on-top technique, added later on direct user request since
+the overlay reads a lot less useful blurred/scanlined along with the
+actual gameplay) while still applying to the rest of the frozen screen
+behind either. Packaging
 is done: both SDL ports now embed their thumbnails directly into the exe
 at compile time (`tools/gen_thumbnails.py` -> `assets/thumbnails/
 thumbnailData.h`, see "Thumbnails" above - no more post-build `assets/`

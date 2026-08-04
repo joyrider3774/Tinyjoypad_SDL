@@ -394,6 +394,15 @@ int main( int argc, char** argv )
     int    fpsFrameCount  = 0;
     float  avgFps         = 0.0f;
 
+    // showFps never toggles at runtime (no keybind for it, unlike glow/CRT/
+    // pixel-grid's own G cycle - see machineDependent.h's own
+    // md_setFpsOverlayShowing() comment), so this one-time "off" call is
+    // all that's needed to keep the platform side's own effect-exemption
+    // state correct for the whole process lifetime when "-fps" wasn't
+    // passed at all.
+    if( !showFps )
+      md_setFpsOverlayShowing( false, 0, 0 );
+
     while( !sdlBackend_shouldQuit() )
     {
         sdlBackend_pollEvents();

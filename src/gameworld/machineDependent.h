@@ -85,6 +85,20 @@ void md_setInGame( bool inGame );
 // lets the platform side tell the two apart.
 void md_setDialogShowing( bool showing );
 
+// Call once per real frame that the "-fps" overlay is actually being drawn
+// (gamesMain_drawFpsOverlay(), main.c's own showFps branch), with the exact
+// pixel rect it just drew (always screen-space (0,0), but width varies with
+// the digit count of the current FPS text - so unlike MD_DIALOG_X/Y/W/H
+// above, this can't be a fixed compile-time constant). Same reasoning as
+// md_setDialogShowing(): the SDL ports' own presentation effects should
+// keep making actual gameplay look like a specific kind of display, but the
+// debug FPS readout itself should stay crisp and legible on top of them,
+// not blurred/scanlined/pixel-gridded along with everything else. Pass
+// showing=false (width/height ignored) once "-fps" isn't in effect - the
+// platform side otherwise has no way to know the overlay stopped being
+// drawn this frame.
+void md_setFpsOverlayShowing( bool showing, int width, int height );
+
 // clears the screen to black - called once at the start of every game frame,
 // before that frame's md_drawColumn() calls
 void md_beginFrame();

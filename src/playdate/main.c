@@ -104,6 +104,15 @@ void md_setInGame( bool inGame ) { (void)inGame; }
 // machineDependent.h's own contract, same reasoning as md_inputStart().
 void md_setDialogShowing( bool showing ) { (void)showing; }
 
+// Same reasoning as md_setDialogShowing() just above - no "-fps" flag on
+// this port at all (see this file's own header comment's own CLI-flag
+// scope list) and no presentation effects for it to stay crisp on top of
+// either, but gamesMain.c's own gamesMain_drawFpsOverlay() (compiled as
+// part of this port's own shared ../gameworld build regardless of whether
+// anything here actually calls it) still references this symbol, so a
+// real no-op definition is needed to link.
+void md_setFpsOverlayShowing( bool showing, int width, int height ) { (void)showing; (void)width; (void)height; }
+
 void md_beginFrame()
 {
     // kColorBlack background / kColorWhite "on" bit (md_drawColumn() below)

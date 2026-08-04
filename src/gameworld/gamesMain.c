@@ -252,6 +252,14 @@ void gamesMain_drawFpsOverlay( float fps )
     strcat( fpsText, fracText );
 
     int textW = biosTextWidth( fpsText );
-    md_drawSolidRect( 0, 0, textW + 8, BIOS_FONT_CHAR_H + 4, MD_COLOR_BLACK );
+    int rectW = textW + 8;
+    int rectH = BIOS_FONT_CHAR_H + 4;
+    md_drawSolidRect( 0, 0, rectW, rectH, MD_COLOR_BLACK );
     biosDrawText( fpsText, 4, 2 );
+
+    // See machineDependent.h's own md_setFpsOverlayShowing() comment - this
+    // is what keeps the readout itself crisp/unblurred on top of the SDL
+    // ports' own presentation effects, the same way md_setDialogShowing()
+    // already does for the quit-confirmation dialog box.
+    md_setFpsOverlayShowing( true, rectW, rectH );
 }
