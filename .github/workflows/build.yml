@@ -38,14 +38,19 @@ jobs:
           - { runson: 'macos-26-intel',   runsontype: 'mac',     sys: 'usr',     env: 'x86_64', name: 'TinyjoypadSDL3', binsuffix: '',     SDL: 'sdl3'}
           #- { runson: 'ubuntu-24.04',     runsontype: 'appimage',sys: 'usr',     env: 'x64',    name: 'TinyjoypadSDL3', binsuffix: '',     SDL: 'sdl3'}
           #- { runson: 'ubuntu-24.04-arm', runsontype: 'appimage',sys: 'usr',     env: 'arm64',  name: 'TinyjoypadSDL3', binsuffix: '',     SDL: 'sdl3'}
+          - { runson: 'ubuntu-24.04',     runsontype: 'playdate',sys: 'usr',     env: 'device', name: 'TinyjoypadPlaydate', binsuffix: '.pdx', SDL: 'playdate'}
 
     runs-on: ${{matrix.runson}}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v7
         with:
-          submodules: 'true'
-          
+          # Playdate doesn't touch either vendored SDL2/SDL3 checkout at all
+          # (src/playdate/CMakeLists.txt never references them) - skipping
+          # submodules there avoids cloning two full SDL checkouts for
+          # nothing.
+          submodules: ${{ matrix.runsontype != 'playdate' }}
+
       - if: ${{ matrix.runsontype == 'windows'}}
         name: Setup Msys
         uses: msys2/setup-msys2@v2
@@ -93,7 +98,26 @@ jobs:
 
           # Refresh ldconfig to ensure new libraries are found
           sudo ldconfig
-          
+
+      - if: ${{ matrix.runsontype == 'playdate' }}
+        name: Install Playdate build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make cmake gcc-arm-none-eabi
+
+      - if: ${{ matrix.runsontype == 'playdate' }}
+        name: Grab Playdate SDK
+        uses: wei/wget@v1
+        with:
+          args: -O PlaydateSDK-latest.tar.gz https://download.panic.com/playdate_sdk/Linux/PlaydateSDK-latest.tar.gz
+
+      - if: ${{ matrix.runsontype == 'playdate' }}
+        name: Extract Playdate SDK
+        run: |
+          tar -xvf PlaydateSDK-latest.tar.gz
+          rm -f PlaydateSDK-latest.tar.gz
+          mv PlaydateSDK-* PlaydateSDK
+
       - if: ${{ matrix.runsontype == 'windows'}}
         name: Build Game Windows
         shell: msys2 {0}
@@ -104,15 +128,26 @@ jobs:
           cmake -G "Ninja" -DUSE_VENDORED_SDL=1 ..
           ninja
           
-      - if: ${{ matrix.runsontype != 'windows' && matrix.runsontype != 'appimage'}}
+      - if: ${{ matrix.runsontype != 'windows' && matrix.runsontype != 'appimage' && matrix.runsontype != 'playdate'}}
         name: Build Game Other
         run: |
           cd src/${{matrix.SDL}}
           mkdir build
-          cd build      
+          cd build
           cmake -DUSE_VENDORED_SDL=1 ..
           make
-          
+
+      - if: ${{ matrix.runsontype == 'playdate' }}
+        name: Build Game Playdate
+        run: |
+          export PLAYDATE_SDK_PATH="$PWD/PlaydateSDK"
+          echo SDK Path: $PLAYDATE_SDK_PATH
+          cd src/playdate
+          mkdir build_device
+          cd build_device
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=$PLAYDATE_SDK_PATH/C_API/buildsupport/arm.cmake ..
+          make
+
       - if: ${{ matrix.runsontype == 'appimage'}}
         name: Build Game Appimage
         run: |
@@ -182,7 +217,7 @@ jobs:
         run: |
           codesign --force --deep -s - "./Release/${{matrix.name}}.app"
           
-      - if: ${{ matrix.runsontype != 'mac' && matrix.runsontype != 'appimage'}}
+      - if: ${{ matrix.runsontype != 'mac' && matrix.runsontype != 'appimage' && matrix.runsontype != 'playdate'}}
         name: Copy Game And Assets Other
         run: |
           mkdir ./Release
@@ -190,12 +225,27 @@ jobs:
           cp "src/${{matrix.SDL}}/build/${{matrix.name}}${{matrix.binsuffix}}" "./Release/${{matrix.name}}/"
           cp ./README.md "./Release/${{matrix.name}}/"
           cp ./LICENSE.txt "./Release/${{matrix.name}}/"
-          
-      - if: ${{ matrix.runsontype != 'mac' && matrix.runsontype != 'appimage'}}
+
+      - if: ${{ matrix.runsontype != 'mac' && matrix.runsontype != 'appimage' && matrix.runsontype != 'playdate'}}
         run: |
           cp -r "metadata/joy files" "./Release/${{matrix.name}}/"
           cp -r "metadata/screenshots" "./Release/${{matrix.name}}/"
-         
+
+      - if: ${{ matrix.runsontype == 'playdate' }}
+        name: Copy Game And Assets Playdate
+        # No -g/.joy/-ms CLI on this port at all (see CLAUDE.md's "The
+        # Playdate port" section's own scope list), so metadata/joy files
+        # and metadata/screenshots (both CLI-launch-related) don't apply
+        # here the way they do for the SDL ports above.
+        run: |
+          mkdir ./Release
+          mkdir "./Release/${{matrix.name}}"
+          # .pdx is a directory bundle (like a macOS .app), not a single
+          # file - cp needs -r or this silently fails to copy anything.
+          cp -r "src/playdate/TinyJoypad_DEVICE.pdx" "./Release/${{matrix.name}}/TinyJoypad.pdx"
+          cp ./README.md "./Release/${{matrix.name}}/"
+          cp ./LICENSE.txt "./Release/${{matrix.name}}/"
+
       - if: ${{ matrix.runsontype != 'appimage'}}
         name: Store build
         uses: actions/upload-artifact@v7
