@@ -904,6 +904,54 @@ projects.
   out of sync) crisply on top of the effects - `gInGame` itself goes back
   to a plain `currentGameIndex != -1`, so the rest of the frozen screen
   keeps whatever effect combination was already active.
+- **`avrCompat.h`'s `uint8_t`/etc typedefs conflicted with Apple's own SDK
+  headers, macOS-only** - found via a real macOS CI run (`build.yml`'s
+  `macos-14`/`15`/`26` matrix entries), not locally (this project's own
+  dev machine is Windows/MinGW, which never hit this). `avrCompat.h`
+  deliberately typedefs `uint8_t`/`int8_t`/`uint16_t`/`int16_t`/`uint32_t`
+  to plain `int` (see that file's own comment - load-bearing, not a
+  simplification to revert) *after* including `<stdlib.h>`/`<string.h>`/
+  `<math.h>`. On MinGW/glibc that ordering never mattered, because none of
+  those three headers transitively define those type names at all there.
+  Apple's SDK does: each has its own individual leaf header
+  (`_types/_uint8_t.h`, `sys/_types/_int8_t.h`, `_types/_uint16_t.h`,
+  `sys/_types/_int16_t.h`, `_types/_uint32_t.h` - real 1-/2-byte-width
+  typedefs, e.g. `typedef unsigned char uint8_t;`) that those three
+  headers pull in transitively, and C has no way to "undo" an earlier
+  typedef - so `avrCompat.h`'s own, later, differently-typed redefinition
+  is a hard compile error (`gameDinoGame.c` was simply the first `.c` file
+  Ninja happened to compile, not anything game-specific - every "game
+  world" file hits it identically).
+  A first fix attempt pre-defined each leaf header's own include guard
+  (`_UINT8_T`/`_INT8_T`/`_UINT16_T`/`_INT16_T`/`_UINT32_T`) as an
+  `if(APPLE)`-scoped `target_compile_definitions()` in both SDL ports' own
+  `CMakeLists.txt`, reasoning that a suppressed leaf header just makes the
+  redefinition a no-op. That broke *worse*, on the very next CI run: those
+  same real types aren't only used by `avrCompat.h`'s own redefinition -
+  Apple's own deeper system headers genuinely need them for their own
+  internal declarations too (`sys/resource.h`'s `uint8_t ri_uuid[16];`;
+  `<stdint.h>`'s own `typedef uint32_t uint_least32_t;`), and suppressing
+  the leaf header starves those of the real type as well, turning one
+  clean "redefinition" error into a cascade of "unknown type name"
+  errors instead. Reverted.
+  Fixed for real by changing `avrCompat.h`'s own six lines from `typedef`
+  to `#define` (`#define uint8_t int`, etc) - the same technique already
+  used for `itoa` a little further down the same file, and for the same
+  reason: a macro doesn't redeclare the real `uint8_t` typedef at all, it
+  just rewrites the raw *token* `uint8_t` to `int` for every line of
+  source from that point forward in the translation unit. Ordering is
+  what makes this safe: `<stdlib.h>`/`<string.h>`/`<math.h>` are still
+  included *first*, so Apple's own deep system headers fully resolve
+  using the real narrow types before the `#define`s ever take effect: only
+  code coming after them in the same translation unit (the rest of
+  `avrCompat.h`, then `machineDependent.h`, the shim headers, and the
+  actual game source) sees `uint8_t`/etc rewritten to `int`. Confirmed
+  nothing later in a "game world" translation unit needs the real names
+  back (`machineDependent.h` only adds `<stdbool.h>`/`<stddef.h>`, neither
+  of which touches these types). No `CMakeLists.txt` changes needed for
+  this version - the fix is entirely inside the already-platform-oblivious
+  `avrCompat.h`, and is a no-op change in effect on MinGW/glibc (same
+  `int` meaning either way, just via a different preprocessor mechanism).
 
 ## CLI parameters
 
