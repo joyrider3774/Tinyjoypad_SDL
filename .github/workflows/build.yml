@@ -236,23 +236,32 @@ jobs:
         # No -g/.joy/-ms CLI on this port at all (see CLAUDE.md's "The
         # Playdate port" section's own scope list), so metadata/joy files
         # and metadata/screenshots (both CLI-launch-related) don't apply
-        # here the way they do for the SDL ports above.
+        # here the way they do for the SDL ports above. No per-matrix-name
+        # subfolder either (unlike "Copy Game And Assets Other" below) -
+        # the .pdx itself is meant to sit at the artifact's own root level,
+        # ready to sideload/drag onto the Simulator directly.
         run: |
           mkdir ./Release
-          mkdir "./Release/${{matrix.name}}"
           # .pdx is a directory bundle (like a macOS .app), not a single
           # file - cp needs -r or this silently fails to copy anything.
-          cp -r "src/playdate/TinyJoypad_DEVICE.pdx" "./Release/${{matrix.name}}/TinyJoypad.pdx"
-          cp ./README.md "./Release/${{matrix.name}}/"
-          cp ./LICENSE.txt "./Release/${{matrix.name}}/"
+          cp -r "src/playdate/TinyJoypad_DEVICE.pdx" "./Release/TinyJoypad.pdx"
+          cp ./README.md "./Release/"
+          cp ./LICENSE.txt "./Release/"
 
-      - if: ${{ matrix.runsontype != 'appimage'}}
+      - if: ${{ matrix.runsontype != 'appimage' && matrix.runsontype != 'playdate'}}
         name: Store build
         uses: actions/upload-artifact@v7
         with:
           name: ${{matrix.name}}-${{matrix.runson}}_${{ matrix.env }}
           path: ./Release/
-      
+
+      - if: ${{ matrix.runsontype == 'playdate' }}
+        name: Store build (playdate)
+        uses: actions/upload-artifact@v7
+        with:
+          name: Tinyjoypad Playdate
+          path: ./Release/
+
       - if: ${{ matrix.runsontype == 'appimage'}}
         name: Store build (appimage)
         uses: actions/upload-artifact@v7
