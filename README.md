@@ -76,13 +76,12 @@ cmake --build build
 - Omit `-DUSE_VENDORED_SDL=1` (or set it to `0`) to link against a system-
   installed SDL instead (`find_package(SDL3 CONFIG)` / `find_package(SDL2 CONFIG)`
   respectively).
-- `assets/` (currently just the menu's thumbnail images) is copied next to
-  the built executable automatically after every build, since thumbnails
-  are resolved relative to the executable's own directory
-  (`SDL_GetBasePath()`), not the launching shell's working directory - see
-  `CLAUDE.md` for why. This makes the build output directory (`src/sdl3/build/`
-  or `src/sdl2/build/`) a complete, runnable, relocatable copy - copy the
-  whole folder to distribute it.
+- The menu's thumbnail images are compiled directly into the executable
+  (`assets/thumbnails/thumbnailData.h`, generated from `assets/thumbnails/
+  *.bmp` by `tools/gen_thumbnails.py` - re-run it after changing any
+  thumbnail) - there's no `assets/` folder to ship or find alongside the
+  built exe. The single resulting binary is the complete, runnable,
+  relocatable artifact - copy just the `.exe` to distribute it.
 - The resulting binary ends up at `src/sdl3/build/TinyjoypadSDL3` (or
   `src/sdl2/build/TinyjoypadSDL2`, or `.exe` on Windows either way). See
   `CLAUDE.md`'s "Directory layout / multi-port structure" section for why

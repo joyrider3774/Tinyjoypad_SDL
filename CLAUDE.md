@@ -104,7 +104,12 @@ Two separate compiled halves, communicating only through
 ```
 SDL3/              <- vendored SDL3 checkout (repo root, not inside src/sdl3/)
 SDL2/              <- vendored SDL2 checkout (repo root, not inside src/sdl2/)
-assets/            <- thumbnails etc - port-agnostic content (SDL ports only)
+assets/            <- thumbnails etc - port-agnostic content (SDL ports only);
+                      thumbnails/thumbnailData.h here is generated, embedded
+                      into both SDL ports' own exe at compile time (see
+                      "Thumbnails" below), not shipped/read at runtime
+tools/             <- gen_thumbnails.py - regenerates that header from the
+                      checked-in thumb_NN.bmp source files
 src/
   gameworld/       <- the "game world" side above - every port reuses this
                       almost entirely UNCHANGED (see "The Playdate port"
@@ -579,19 +584,38 @@ order - the same order `menuGameList.c`'s own `addGame()` calls happen
 in, which is also what `menu.c`'s `displayOrder[]` indirection resolves
 an alphabetized menu position back to before calling
 `md_drawGameThumbnail()`). Generated via `-ms` (see "CLI parameters"
-below) plus an ImageMagick crop/resize pass - not embedded in the binary;
-loaded lazily by `sdlBackend.c` from `<exe-dir>/assets/thumbnails/`
-(resolved via `SDL_GetBasePath()`, not the launching shell's cwd, so a
-copied/distributed build finds them regardless of working directory -
-`CMakeLists.txt` copies `assets/` next to the built exe after every
-build for exactly this reason). `md_getThumbnailCount()` probes
-sequentially from index 0 and stops at the first missing file, so a
-future 34th game with no thumbnail yet is a silent no-op, not an error.
+below) plus an ImageMagick crop/resize pass.
+
+**Embedded in the binary, not loaded from disk at runtime.**
+`tools/gen_thumbnails.py` reads every `assets/thumbnails/thumb_NN.bmp` and
+emits `assets/thumbnails/thumbnailData.h` - a generated (not hand-edited)
+header holding each file's raw bytes as a `static const unsigned char[]`,
+plus a `gThumbnailBlobs[]` lookup table of `{data, len}` pairs.
+`sdlBackend.c` on both SDL ports `#include`s it directly (each port's own
+`CMakeLists.txt` adds `assets/thumbnails/` to its include path) and
+decodes each blob in memory at first use via `SDL_IOFromConstMem()` +
+`SDL_LoadBMP_IO()` (SDL3) / `SDL_RWFromConstMem()` + `SDL_LoadBMP_RW()`
+(SDL2) - same BMP decoder either way, just fed a memory buffer instead of
+a file path. `thumbnailsProbeIfNeeded()` still stops at the first blob
+that fails to decode, preserving the old disk-probe's "future 34th game
+with no thumbnail yet is a silent no-op" behavior, even though the blob
+count is now compile-time-known rather than discovered by a missing-file
+check. This replaced an earlier design (loading `SDL_LoadBMP()` from
+`<exe-dir>/assets/thumbnails/`, resolved via `SDL_GetBasePath()`, with
+`CMakeLists.txt` copying `assets/` next to the built exe after every
+build) on direct user request - the built exe is now fully self-contained
+with no sibling `assets/` directory to ship or find, so that post-build
+copy step was removed from both ports' own `CMakeLists.txt`. The source
+`.bmp` files themselves are unchanged and still live in `assets/
+thumbnails/` (also still what `tools/gen_thumbnails.py` reads from) - only
+how the platform layer gets the bytes into memory changed. Re-run the
+script whenever a thumbnail is added, removed, or regenerated; its output
+is derived, so it isn't meant to be hand-edited.
 
 Unlike the Vircon32 build (which needed a 2nd atlas texture once its
 first 4x8 grid hit the 1024x1024 texture-size cap), there's no size
 constraint here to design around - each thumbnail is just its own
-independently-loaded `SDL_Surface`.
+independently-decoded `SDL_Surface`.
 
 ### Presentation effects: glow, CRT scanlines, pixel-grid
 
@@ -911,8 +935,11 @@ effects (glow, CRT scanlines, pixel-grid) are implemented there and cycle
 correctly via a single button, gated to gameplay only and skipped over the
 quit-confirmation dialog's own rect specifically (`md_setDialogShowing()`)
 while still applying to the rest of the frozen screen behind it. Packaging
-(the `assets/` post-build copy step for the SDL ports, the `pdc`-driven
-`.pdx` packaging for the Playdate port) is done. The `F3`/`PageUp`/
+is done: both SDL ports now embed their thumbnails directly into the exe
+at compile time (`tools/gen_thumbnails.py` -> `assets/thumbnails/
+thumbnailData.h`, see "Thumbnails" above - no more post-build `assets/`
+copy step, no sibling directory needed alongside the built exe), and the
+Playdate port has its own `pdc`-driven `.pdx` packaging. The `F3`/`PageUp`/
 `PageDown`/`S` keybinds (fullscreen, volume, mute - see
 `sdlBackend_pollEvents()`) are live-wired on both SDL ports, not just
 declared in the keybind table; each change is logged to the console since
