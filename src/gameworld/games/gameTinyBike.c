@@ -419,6 +419,18 @@ int bikWinFreq[10] = { 100, 1, 100, 1, 100, 1, 100, 1, 100, 1 };
 int bikWinDur[10]  = { 100, 100, 100, 100, 100, 100, 100, 100, 100, 100 };
 int bikWinExtraMs[10] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
+// bikAddLive()'s own 3-tone burst and the race-start 2-tone cue - both
+// found firing every one of their Sound() calls synchronously (no queue
+// on md_playTone(), so only the last call of each was ever audible),
+// routed through the same shared sequencer as the intro/win jingles above.
+int bikBonusFreq[3] = { 60, 200, 120 };
+int bikBonusDur[3]  = { 4, 4, 4 };
+int bikBonusExtraMs[3] = { 0, 0, 0 };
+
+int bikRaceStartFreq[2] = { 200, 60 };
+int bikRaceStartDur[2]  = { 20, 20 };
+int bikRaceStartExtraMs[2] = { 0, 0 };
+
 void bikStartNoteSeq( int* freqs, int* durs, int* extras, int count )
 {
     bikNoteFreqTable = freqs;
@@ -620,9 +632,7 @@ void bikAddLive( int spr )
 {
     bikSprite[ spr ].active = 0;
     if( bikLive < 3 ) bikLive++;
-    Sound( 60, 4 );
-    Sound( 200, 4 );
-    Sound( 120, 4 );
+    bikStartNoteSeq( bikBonusFreq, bikBonusDur, bikBonusExtraMs, 3 );
 }
 
 void bikAnaliseMinutieuse()
@@ -1110,14 +1120,21 @@ void gameTinyBike_forceRedraw()
 
 void gameTinyBike_update()
 {
+    // Advances whatever note sequence is currently active, regardless of
+    // state - previously only advanced from within BIK_STATE_START_LINE/
+    // LEVEL_WIN_WAIT, which left bikAddLive()'s bonus-life cue (triggered
+    // mid-gameplay) and the race-start cue (triggered from ATTRACT, which
+    // passes through two other states before ever reaching START_LINE)
+    // with no advance call reaching them at all.
+    bikAdvanceNoteSeq();
+
     if( bikState == BIK_STATE_ATTRACT )
     {
         bikTinyFlip( 2 );
         if( isFirePressed() )
         {
             bikIntroPic = bikSTART_RACE;
-            Sound( 200, 20 );
-            Sound( 60, 20 );
+            bikStartNoteSeq( bikRaceStartFreq, bikRaceStartDur, bikRaceStartExtraMs, 2 );
             bikBeginLevelIntroWait();
         }
         return;
@@ -1161,8 +1178,7 @@ void gameTinyBike_update()
     if( bikState == BIK_STATE_START_LINE )
     {
         bikTinyFlip( 3 );
-        int seqDone = bikAdvanceNoteSeq();
-        if( seqDone )
+        if( !bikNoteSeqActive )
         {
             if( isFirePressed() )
               bikBeginWaitRelease();
@@ -1287,8 +1303,7 @@ void gameTinyBike_update()
             bikTinyFlip( 0 );
             bikForceRedraw = 0;
         }
-        int seqDone = bikAdvanceNoteSeq();
-        if( seqDone )
+        if( !bikNoteSeqActive )
         {
             if( bikWinWaitStarted == 0 )
             {
