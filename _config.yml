@@ -1,3 +1,4 @@
 theme: jekyll-theme-midnight
 exclude: 
-    - Vendored
+    - SDL2
+    - SDL3
