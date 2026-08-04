@@ -1150,6 +1150,56 @@ crash after repeated hits), which is reasonable indirect confidence given
 the logic is identical, but worth a direct play-test here too if time
 allows.
 
+## Tiny Bike: same "flattened loop bound" bug found on the sibling Vircon32 build's own project-wide audit, ported here too
+
+The Vircon32 sibling project ran a 4-agent, 32-game audit for the same
+bug class as the Tiny Missile `ATTACK_WEAPON()` fix above (an upstream
+`while`/`goto`-shaped loop whose own condition is genuinely re-checked
+every iteration, ported into a form that drops that per-iteration
+recheck). 31 of 32 games came back clean; Tiny Bike had a real instance.
+
+Upstream's own per-tick movement loop:
+```c
+for (t=0; t<CHECK_SPEED_ADJ(ACCEL); t++){
+  INCREMENTE_SCROLL(); if (DIV1==3) {...TRACK_RUN_ADJ();...} else{DIV1++;}
+}
+```
+A plain C `for` loop re-evaluates its bound *every iteration* -
+`CHECK_SPEED_ADJ(ACCEL)` (which also has a side effect, `Higher_adj(ret)`,
+updating the jump-arc physics constant) is called fresh each pass against
+whatever `ACCEL` currently is. `ACCEL` is not read-only inside the loop
+body: `INCREMENTE_SCROLL()` -> `RefreshPosSprite()` -> `CheckCollision()`
+-> `analise_minutieuse()` can reduce it mid-loop (an oil-slick hit,
+`ACCEL-=0.20`), and `Break_Gravity()` (a hard ramp landing) can too - so a
+same-tick collision correctly shortens the *remaining* iterations
+upstream, and re-derives the jump-height constant against the new,
+slower speed.
+
+This port's `gameworld/games/gameTinyBike.c` had instead hoisted this to
+`int speedTicks = bikCheckSpeedAdj( bikAccel ); for(t=0;t<speedTicks;t++)`
+- computed once, before the loop, even though the same reachable mid-loop
+`bikAccel` reduction paths exist here too. Effect: after a same-tick
+oil-slick hit or hard landing, the port kept running for the *original*
+(higher, pre-collision) iteration count instead of correctly shortening
+it, and left `bikHigherJump` stale instead of refreshed against the new
+speed. **Fixed** by moving `bikCheckSpeedAdj( bikAccel )` directly into
+the loop condition, matching upstream's genuine per-iteration
+re-evaluation.
+
+Ported directly from the identical fix in the sibling Vircon32 build
+(same shared-origin bug - `gameTinyBike.c`'s own movement loop is
+essentially byte-identical between the two projects). Verified with a
+clean rebuild of both `src/sdl3/` and `src/sdl2/` (both link successfully,
+no new warnings) - this fix lives in the shared `src/gameworld/` code, so
+`src/playdate/` picks it up automatically too, though that port wasn't
+independently rebuilt this session. Not verified by actual play-test on
+this project - the Vircon32 sibling's own version was Puppeteer-verified
+(launched, played - acceleration, wheelie tilt, track scrolling, HUD -
+with no crash), but didn't specifically force an oil-slick-hit-mid-loop
+frame to visually confirm the corrected iteration-count behavior itself,
+so worth a direct play-test focused on that exact scenario here too if
+time allows.
+
 ## Status
 
 All 33 games ported, verified, and wired into the menu on all three ports
