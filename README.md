@@ -1,4 +1,4 @@
-# TinyJoypad → SDL3
+# TinyJoypad → SDL
 
 A native SDL3 port bringing **33 games**, originally written for the
 [TinyJoypad](https://www.tinyjoypad.com/) ATtiny85 + SSD1306 128x64 OLED
