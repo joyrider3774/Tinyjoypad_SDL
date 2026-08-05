@@ -833,6 +833,17 @@ static int update( void* userdata )
         {
             gCurrentGameIndex = chosen;
             md_armInputFireGate();
+
+            // Same fix as every SDL port's own gamesMain.c (ported from
+            // the sibling tinyjoypad_vircon32 project's own portVircon32.c,
+            // commit b75fccf) - clear to black once, immediately on
+            // selection and before the chosen game's own init() runs any
+            // of its own code, so a game whose init() doesn't draw a full
+            // frame right away doesn't leave the last menu frame sitting
+            // on screen for that one gap tick instead of a clean black
+            // transition.
+            md_beginFrame();
+
             menu_getGame( chosen )->init();
             addGameSystemMenuItems();
         }
