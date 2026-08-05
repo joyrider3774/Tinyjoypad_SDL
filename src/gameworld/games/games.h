@@ -158,4 +158,7 @@ void gameFallingBlocks_init();
 void gameFallingBlocks_update();
 void gameFallingBlocks_forceRedraw();
 
+void gameTinyMania_init();
+void gameTinyMania_update();
+
 #endif

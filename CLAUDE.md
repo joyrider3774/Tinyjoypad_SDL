@@ -2,7 +2,7 @@
 
 ## Goal
 
-A native SDL3 port of the sibling `tinyjoypad_vircon32` project (40
+A native SDL3 port of the sibling `tinyjoypad_vircon32` project (41
 TinyJoypad games behind one shared menu, originally targeting the
 Vircon32 fantasy console) - same games, same menu shape, but as a plain
 desktop executable with no emulator dependency. This file is project
@@ -48,7 +48,7 @@ Two separate compiled halves, communicating only through
 `portVircon32.c`:
 
 - **"Game world"** (`src/gameworld/`) - `avrCompat.h` + `tinyJoypadShim`/
-  `obonoCoreShim` + `menu.c`/`menuGameList.c` + all 40 `games/*.c` files.
+  `obonoCoreShim` + `menu.c`/`menuGameList.c` + all 41 `games/*.c` files.
   **Never includes `SDL.h`** (or anything that would pull in `<stdint.h>`,
   which would conflict with `avrCompat.h`'s own `uint8_t`-aliased-to-`int`
   typedefs if both were ever visible in the same translation unit).
@@ -80,7 +80,7 @@ Two separate compiled halves, communicating only through
     functions, no shared types, no cross-game calls (every game already
     has fully-unique prefixed names, so there's nothing else for a
     per-game header to usefully declare). Instead, `games/games.h` is ONE
-    shared header declaring that same tiny surface for all 40 games -
+    shared header declaring that same tiny surface for all 41 games -
     `menuGameList.c`'s own `addGames()` is the only file that includes it
     (it's the only place that needs every game's address at once, to
     build the `Game` table `menu_getGame()` indexes into). Individual
@@ -137,7 +137,7 @@ project's own layout (`src/games/` + `src/lib/` shared, then one directory
 per port - `src/cglpSDL3/`, `src/cglpSDL2/`, `src/cglpPlaydate/`,
 `src/cglpPyBadge/`, ... - each with its own standalone `CMakeLists.txt`),
 adopted here on direct user request specifically so a second (and third)
-port could reuse `src/gameworld/` (all 40 games included) with minimal or
+port could reuse `src/gameworld/` (all 41 games included) with minimal or
 no changes, by just adding a new `src/<portname>/` directory alongside
 `src/sdl3/`, with its own `CMakeLists.txt` globbing `../gameworld` the same
 way `src/sdl3/CMakeLists.txt` already does - no shared root build file to
@@ -1273,7 +1273,7 @@ the Vircon32 sibling's own version *was* directly play-tested and
 confirmed by the user, which is reasonable confidence given the logic is
 byte-identical, but worth a direct play-test here too if time allows.
 
-## Seven more games backported from upstream
+## Eight more games backported from upstream (and two follow-up fixes)
 
 The sibling `tinyjoypad_vircon32` project added 7 new games in its own
 history after this project's initial 33-game port was complete
@@ -1352,9 +1352,58 @@ gameplay, not placeholder art - verified by eye (`Read`-ing each
 converted screenshot) before cropping, the same "check the actual
 screenshot" standard every other thumbnail in this project was held to.
 
+**The boot-clear fix above was missing its own Playdate equivalent** -
+found on direct user follow-up, not caught the first time through. The
+Playdate port has its own from-scratch menu (`src/playdate/main.c`, see
+"The Playdate port" above) that never goes through `gamesMain.c`'s own
+`gamesMain_dispatchFrame()` at all, so porting the sibling's fix into
+`gamesMain.c` alone didn't cover this port. Fixed by adding the identical
+`md_beginFrame()` call to `main.c`'s own menu-selection branch, right
+before its own `menu_getGame(chosen)->init()` call - same placement,
+same reasoning, just a second call site since this port's menu is a
+separate implementation, not a shared one.
+
+**Bat Bonanza's own screenshot/thumbnail showed just the score, no
+bats or ball** - found on direct user report, then confirmed by reading
+the shipped screenshot. Root cause: the default `-ms` script's long total
+wait (4 taps, 90-frame gaps, no cap on `PLAYING` time) reliably outlives
+a real point being scored in this game specifically, landing on
+`PONG_STATE_ROUND_FLASH` instead (which only blinks the two score
+digits - no bats/ball drawn at all). Compounding this, the left paddle
+only reads Up/Down, which the default script never sends, so it sits
+wherever it clamps to and a round resolves quickly. Fixed with a
+per-game override (`BAT BONANZA` in `screenshotScriptFor()`): one tap to
+leave `ATTRACT`, then a wait tuned to clear `PONG_STATE_COUNTDOWN`'s own
+fixed 180-real-frame duration (a 60-frame wait *before* the first digit
+even decrements, then 60 more each for "3"->"2"->"1" - a first attempt
+budgeted only 120, missing that leading wait, and still landed on
+"GET READY -- 1") plus a small buffer, short enough to land in real
+`PLAYING` before the stuck paddle can miss. `thumb_10.bmp`, its Playdate
+`thumb_10.png` counterpart, `thumbnailData.h`, and
+`metadata/screenshots/BAT BONANZA.png` were all regenerated from the
+corrected capture.
+
+**An eighth game, Tiny Mania**, was added to the sibling project shortly
+after the seven above and ported here the same way (a single background
+agent this time, one file being large enough - 2147 lines, the biggest
+in this project - to warrant its own dedicated task rather than batching
+it with anything else). A Pac-Man-style maze/ghost-chase game by Daniel C
+with a jump mechanic (Fire triggers a fixed jump-height animation letting
+the player pass safely over a ghost mid-air), reusing Tiny Arena's own
+half-resolution-buffer rendering technique directly rather than a new
+one. No `forceRedraw` needed (redraws unconditionally every tick, same
+reasoning as Tiny Fi). Unlike the batch above, this one needed no
+screenshot-script tuning at all - the default script landed on real
+gameplay (maze, dots, the Pac sprite, score) on the first try. Registered
+as index 40 (`thumb_40.bmp`/`thumb_40.png`), verified the same way as
+every prior addition: independently re-built from a clean tree (not just
+trusting the agent's own report), grepped for leftover Vircon32-dialect
+syntax, smoke-tested via `-g`, and the resulting screenshot checked by
+eye before cropping.
+
 ## Status
 
-All 40 games ported, verified, and wired into the menu on all three ports
+All 41 games ported, verified, and wired into the menu on all three ports
 (`src/sdl3/`, `src/sdl2/`, `src/playdate/`); the menu shows real gameplay
 thumbnails on every port. CLI parameters, FPS display, and the batch-
 screenshot tool are in place on both SDL ports; all three presentation
