@@ -963,8 +963,12 @@ framerate - toggles vsync off, rather than cglp's own manual
 when enabled and this project had no reason to duplicate that logic),
 `-s` (force software rendering - added later, on direct user request; see
 below), `-list`, `-g <NAME>` (direct launch, case-insensitive), `-ms`
-(batch screenshot every game - also the mechanism thumbnails are
-generated from), `-joy` (write a `.joy` title-stub file per game,
+(batch screenshot every game, plus one `./menu.bmp` of the menu's own
+default first-page/first-selection state, captured first before any
+game's own launch overwrites it - also the mechanism thumbnails are
+generated from, and the source of `metadata/menu.png` at the top of
+`README.md`, matching the sibling project's own `effdb2f`), `-joy`
+(write a `.joy` title-stub file per game,
 mirroring cglp's own `.cgl` files under this project's own extension),
 and a `.joy` file itself as a positional argument (extracts the game
 title from the filename, matching cglp's own filename-only convention -

@@ -207,6 +207,19 @@ static ScreenshotScript screenshotScriptFor( char* title )
 // unlike -list/-joy above.
 static void runBatchScreenshots()
 {
+    // Menu screenshot first, before any game's own launch overwrites
+    // currentGameIndex (gamesMain_init() already left it at -1, showing
+    // the menu's own default first-page/first-selection state) - matches
+    // the sibling tinyjoypad_vircon32 project's own metadata/menu.png,
+    // used at the top of its own README.md. A few frames' worth of
+    // buffer (not strictly required - menu_update() already draws on its
+    // very first call) rather than exactly one, just so this isn't the
+    // single most timing-sensitive capture in the whole batch.
+    for( int j = 0; j < 5; j++ )
+      screenshotHeldDirectionFrame( false );
+    sdlBackend_saveScreenshot( "./menu.bmp" );
+    printf( "Captured ./menu.bmp\n" );
+
     for( int i = 0; i < gamesMain_getGameCount(); i++ )
     {
         gamesMain_launchGameDirect( i );
