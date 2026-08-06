@@ -931,9 +931,30 @@ static void returnToMenu()
 // menu - reads the value the OS already flipped back out, rather than
 // tracking a second, independently-toggled copy of it here that could
 // drift out of sync with what the checkmark itself is showing.
+//
+// **The NULL guard below is load-bearing, not defensive boilerplate** -
+// confirmed via a real crash report ("pd_getMenuItemValue: non-NULL value
+// required for argument 'menuItem'") and the SDK's own documented
+// addCheckmarkMenuItem() behavior: "If this menu item is interacted with
+// while the system menu is open, callback will be called when the menu is
+// closed." Toggling Pixel Grid does NOT fire this callback immediately -
+// it's deferred until the system menu actually closes. Selecting "Menu"
+// closes it (its own addMenuItem() doc: "Invoke your callback function.
+// Hide the System Menu."), so a session of check -> uncheck -> select
+// "Menu" delivers BOTH this still-pending callback and menuMenuCallback()
+// together, in the items' own registration order ("Menu" was added first
+// in addGameSystemMenuItems(), "Pixel Grid" second) - meaning
+// menuMenuCallback() -> returnToMenu() -> removeAllMenuItems() (which
+// frees every PDMenuItem, per the SDK's own docs) and nulls
+// gPixelGridMenuItem *before* this now-stale pending callback finally
+// runs. Reading gPixelGridEnabled's own last-known-good value here instead
+// of crashing is the correct behavior anyway - the menu is already gone by
+// this point, so there's nothing left to read a fresh value from.
 static void pixelGridMenuCallback( void* userdata )
 {
     (void)userdata;
+    if( gPixelGridMenuItem == NULL )
+      return;
     gPixelGridEnabled = pd->system->getMenuItemValue( gPixelGridMenuItem ) != 0;
 
     // Same problem menu.h's own onResume hook already exists to solve (see
