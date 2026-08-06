@@ -566,6 +566,47 @@ int main( int argc, char** argv )
     if( !showFps )
       md_setFpsOverlayShowing( false, 0, 0 );
 
+    // Fixed-60Hz logic accumulator - every game's own timing (movement/
+    // physics/animation tick-divisors, and audio's gFrameCounter-based
+    // tone-duration/note-sequencer scheduling, see sdlBackend.c's own
+    // md_updateAudio()) assumes exactly MD_FRAMES_PER_SECOND==60
+    // gamesMain_dispatchFrame() calls happen per real second - true only
+    // by accident on an old fixed-60Hz display. With vsync on,
+    // SDL_RenderPresent() (called once per real loop iteration, inside
+    // md_endFrame() below) paces this whole loop to the display's own
+    // ACTUAL refresh rate, whatever that is - a 100Hz/144Hz/etc monitor
+    // would otherwise call dispatchFrame() 100/144/etc times per real
+    // second, running every game proportionally too fast (confirmed by
+    // direct user report/investigation, not a hypothetical - the exact
+    // same class of bug already found and fixed for the Playdate port's
+    // own hardware-capped 50fps refresh rate, see that port's own
+    // md_updateAudio() comment for the analogous fractional-accumulator
+    // fix there). Decoupled the same way here: accumulate real elapsed
+    // wall-clock time (SDL_GetPerformanceCounter(), immune to the display's
+    // own refresh rate) and only run a logic tick once a full 1/60s has
+    // accumulated - a real fixed-timestep game loop, standard shape.
+    //
+    // A slower-than-60Hz display (30Hz, say) needs the *opposite*
+    // correction - MULTIPLE logic ticks accumulate per real loop
+    // iteration there, so the inner while below can run
+    // gamesMain_dispatchFrame() more than once before the next
+    // md_endFrame()/present; each dispatchFrame() call redraws gScreen
+    // itself (this project's own persistent-canvas rendering model, see
+    // CLAUDE.md's "Rendering model" section), so an earlier tick's own
+    // drawing this same real frame is harmlessly overwritten by the next
+    // one before anything is ever presented - not wasted differently than
+    // any other game engine's own "catch up, then show only the latest
+    // state" fixed-timestep behavior.
+    //
+    // elapsed is clamped to a few ticks' worth before accumulating to
+    // avoid a spiral of death after a real stall (window drag, alt-tab,
+    // a debugger breakpoint) - without this, a multi-second gap would
+    // otherwise demand hundreds of catch-up ticks in a single real frame.
+    const double logicDt = 1.0 / (double)MD_FRAMES_PER_SECOND;
+    const double maxAccumulatedSeconds = logicDt * 5.0;
+    double logicAccumulator = 0.0;
+    Uint64 lastTicks = SDL_GetPerformanceCounter();
+
     while( !sdlBackend_shouldQuit() )
     {
         sdlBackend_pollEvents();
@@ -573,10 +614,22 @@ int main( int argc, char** argv )
         if( sdlBackend_shouldQuit() )
           break;
 
-        gamesMain_dispatchFrame();
+        Uint64 nowTicks = SDL_GetPerformanceCounter();
+        double elapsedSeconds = (double)( nowTicks - lastTicks ) / (double)perfFreq;
+        lastTicks = nowTicks;
+        if( elapsedSeconds > maxAccumulatedSeconds )
+          elapsedSeconds = maxAccumulatedSeconds;
+        logicAccumulator += elapsedSeconds;
 
-        md_updateAudio();
-        obonoCoreShimUpdateSound();
+        while( logicAccumulator >= logicDt )
+        {
+            gamesMain_dispatchFrame();
+
+            md_updateAudio();
+            obonoCoreShimUpdateSound();
+
+            logicAccumulator -= logicDt;
+        }
 
         if( showFps )
         {
