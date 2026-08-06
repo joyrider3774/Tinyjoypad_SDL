@@ -17,6 +17,7 @@
 #include "machineDependent.h"
 #include "menu.h"
 #include "menuGameList.h"
+#include "eepromShim.h"
 
 // -----------------------------------------------------------------------------
 // Quit-confirmation dialog - ported from the sibling tinyjoypad_vircon32
@@ -174,6 +175,13 @@ void gamesMain_dispatchFrame()
             // transition.
             md_beginFrame();
 
+            // Resolve/load this game's own persistent EEPROM slot (looked
+            // up by its title, not by chosen/registration index - see
+            // eepromShim.c) before init() runs, since a game's own init()
+            // is what actually calls eeprom_read_byte()/etc to load its
+            // saved high score.
+            eepromSelectGame( menu_getGame( chosen )->title );
+
             menu_getGame( chosen )->init();
         }
     }
@@ -267,6 +275,14 @@ void gamesMain_launchGameDirect( int idx )
     // its very first screenshot capture the PREVIOUS game's leftover
     // frame instead of a clean black start.
     md_beginFrame();
+
+    // Same reasoning as gamesMain_dispatchFrame()'s own menu-selection
+    // branch above - matters here too, since this same function also
+    // backs -ms's batch screenshot mode, which launches every game back-
+    // to-back: without this, a game whose own init() reads a saved high
+    // score would still see whatever the PREVIOUS game's own slot left in
+    // currentSlot instead of its own.
+    eepromSelectGame( menu_getGame( idx )->title );
 
     menu_getGame( idx )->init();
 }

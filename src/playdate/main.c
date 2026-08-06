@@ -45,6 +45,7 @@
 #include "menu.h"
 #include "menuGameList.h"
 #include "obonoCoreShim.h"
+#include "eepromShim.h"
 
 static PlaydateAPI* pd;
 
@@ -440,6 +441,165 @@ void md_updateAudio()
 }
 
 int md_getFrameCounter() { return gFrameCounter; }
+
+// =============================================================================
+//   MEMORY CARD (backs eepromShim.h's persistent per-game EEPROM emulation)
+// =============================================================================
+// A real implementation - saves into this game's own private per-
+// cartridge data folder via pd->file (kFileWrite/kFileReadData), the same
+// real Playdate persistence mechanism crisp-game-lib-portable-sdl's own
+// cglpPlaydate.c already uses for its own high-score save
+// (loadHighScores()/saveHighScores(), "savestate.srm"). No home-directory
+// concept applies here the way it does on the SDL ports - a plain
+// relative filename with no leading slash is automatically written into
+// this game's own sandboxed Data/<bundleid> folder, the platform's own
+// equivalent of "the user's persistent storage for this app".
+//
+// Playdate's own file API has no true random-access read-modify-write the
+// way stdio's "r+b" mode gives the SDL ports (kFileWrite always creates
+// fresh/truncates) - so instead of seeking within an open handle, every
+// read/write here works against one whole in-memory copy of the file:
+// read pulls the entire file in, write patches the in-memory copy at the
+// given offset (growing/zero-filling it as needed) then writes the WHOLE
+// thing back out in one kFileWrite pass. The file tops out around 36KB
+// (eepromShim.c's own EEPROM_MAX_SLOTS * ~570 bytes/slot) and this only
+// ever runs once per game launch (a read) or on a genuine new high score
+// (a write), never per-frame, so the extra whole-file I/O each time isn't
+// a real cost.
+#define CARD_FILE_NAME "highscores.dat"
+#define CARD_SIGNATURE_TEXT "TINYJOYPADSDL01"
+#define CARD_SIGNATURE_BYTES 32 // just needs to not overlap eepromShim.c's own first slot offset, not to numerically match it
+
+// Reads the whole file into a pd->system->realloc()'d buffer - the file
+// API has no direct handle-based "get size" call, so this just grows a
+// buffer in chunks until read() stops returning data. *outBuf is NULL and
+// *outLen is 0 (a legitimate "no file yet" result, not an error the
+// caller needs to special-case) if the file doesn't exist.
+static int cardReadWholeFile( unsigned char** outBuf, int* outLen )
+{
+    *outBuf = NULL;
+    *outLen = 0;
+
+    SDFile* fp = pd->file->open( CARD_FILE_NAME, kFileReadData );
+    if( !fp )
+      return 0;
+
+    int cap = 4096;
+    unsigned char* buf = pd->system->realloc( NULL, (size_t)cap );
+    int len = 0;
+    for( ;; )
+    {
+        if( len + 4096 > cap )
+        {
+            cap *= 2;
+            buf = pd->system->realloc( buf, (size_t)cap );
+        }
+        int n = pd->file->read( fp, buf + len, 4096 );
+        if( n <= 0 )
+          break;
+        len += n;
+    }
+    pd->file->close( fp );
+
+    *outBuf = buf;
+    *outLen = len;
+    return 1;
+}
+
+bool md_cardIsConnected()
+{
+    // Always true - Playdate's own sandboxed per-game data folder always
+    // exists and is always writable, unlike Vircon32's real removable
+    // memory card, which can genuinely be absent.
+    return true;
+}
+
+bool md_cardHasOurSignature()
+{
+    unsigned char* buf;
+    int len;
+    if( !cardReadWholeFile( &buf, &len ) )
+      return false;
+
+    bool matches = ( len >= (int)strlen( CARD_SIGNATURE_TEXT ) )
+                 && ( memcmp( buf, CARD_SIGNATURE_TEXT, strlen( CARD_SIGNATURE_TEXT ) ) == 0 );
+
+    pd->system->realloc( buf, 0 );
+    return matches;
+}
+
+void md_cardWriteSignature()
+{
+    unsigned char* buf;
+    int len;
+    cardReadWholeFile( &buf, &len ); // buf==NULL/len==0 (fresh file) is fine
+
+    if( len < CARD_SIGNATURE_BYTES )
+    {
+        unsigned char* grown = pd->system->realloc( buf, (size_t)CARD_SIGNATURE_BYTES );
+        memset( grown + len, 0, (size_t)( CARD_SIGNATURE_BYTES - len ) );
+        buf = grown;
+        len = CARD_SIGNATURE_BYTES;
+    }
+
+    memset( buf, 0, CARD_SIGNATURE_BYTES );
+    memcpy( buf, CARD_SIGNATURE_TEXT, strlen( CARD_SIGNATURE_TEXT ) );
+
+    SDFile* fp = pd->file->open( CARD_FILE_NAME, kFileWrite );
+    if( fp )
+    {
+        pd->file->write( fp, buf, (unsigned int)len );
+        pd->file->close( fp );
+    }
+
+    pd->system->realloc( buf, 0 );
+}
+
+void md_cardReadData( void* dest, int offsetBytes, int sizeBytes )
+{
+    memset( dest, 0, (size_t)sizeBytes );
+
+    unsigned char* buf;
+    int len;
+    if( !cardReadWholeFile( &buf, &len ) )
+      return;
+
+    int avail = len - offsetBytes;
+    if( avail > 0 )
+    {
+        int copyLen = avail < sizeBytes ? avail : sizeBytes;
+        memcpy( dest, buf + offsetBytes, (size_t)copyLen );
+    }
+
+    pd->system->realloc( buf, 0 );
+}
+
+void md_cardWriteData( void* src, int offsetBytes, int sizeBytes )
+{
+    unsigned char* buf;
+    int len;
+    cardReadWholeFile( &buf, &len ); // buf==NULL/len==0 (fresh file) is fine
+
+    int neededLen = offsetBytes + sizeBytes;
+    if( len < neededLen )
+    {
+        unsigned char* grown = pd->system->realloc( buf, (size_t)neededLen );
+        memset( grown + len, 0, (size_t)( neededLen - len ) );
+        buf = grown;
+        len = neededLen;
+    }
+
+    memcpy( buf + offsetBytes, src, (size_t)sizeBytes );
+
+    SDFile* fp = pd->file->open( CARD_FILE_NAME, kFileWrite );
+    if( fp )
+    {
+        pd->file->write( fp, buf, (unsigned int)len );
+        pd->file->close( fp );
+    }
+
+    pd->system->realloc( buf, 0 );
+}
 
 // =============================================================================
 //   MENU - Playdate-native (see this file's own header comment for why
@@ -847,6 +1007,14 @@ static int update( void* userdata )
             // on screen for that one gap tick instead of a clean black
             // transition.
             md_beginFrame();
+
+            // Same call as every SDL port's own gamesMain.c - resolves/
+            // loads this game's own persistent save slot (see this file's
+            // own md_card*() implementation below, backed by a real file
+            // in this game's sandboxed Data folder via pd->file) before
+            // init() runs, since a game's own init() is what actually
+            // calls eeprom_read_byte()/etc to load its saved high score.
+            eepromSelectGame( menu_getGame( chosen )->title );
 
             menu_getGame( chosen )->init();
             addGameSystemMenuItems();

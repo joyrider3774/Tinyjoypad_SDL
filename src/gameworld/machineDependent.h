@@ -256,4 +256,30 @@ void md_stopTone();
 // regardless of which game (if any) is running
 void md_updateAudio();
 
+// =============================================================================
+//   MEMORY CARD (backs eepromShim.h's persistent per-game EEPROM emulation)
+// =============================================================================
+// Ported from the sibling tinyjoypad_vircon32 build's own machineDependent.h
+// (thin wrappers there around Vircon32's real memory-card hardware) - here
+// each port backs these with a genuine file instead (see each port's own
+// sdlBackend.c/main.c for the real read/write implementation). offsetBytes/
+// sizeBytes are real bytes, not Vircon32 ints/words - this project's own
+// eepromShim.c stores its on-disk slot data as real bytes (see that file's
+// own header comment for why), so byte offsets are the natural unit here.
+
+bool md_cardIsConnected();
+
+// true only if the connected card's own signature matches this project's
+// fixed signature (see eepromShim.c) - a save file written by an unrelated
+// program, or a blank/missing file, both read as false here rather than
+// risking a misread of foreign data.
+bool md_cardHasOurSignature();
+
+// stamps this project's fixed signature onto the connected card - called
+// once, the first time anything is ever written to a fresh/foreign card.
+void md_cardWriteSignature();
+
+void md_cardReadData( void* dest, int offsetBytes, int sizeBytes );
+void md_cardWriteData( void* src, int offsetBytes, int sizeBytes );
+
 #endif

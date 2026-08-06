@@ -44,6 +44,8 @@
 #include <SDL.h>
 #include <stdbool.h>
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "machineDependent.h"
 #include "sdlBackend.h"
@@ -739,6 +741,151 @@ void md_updateAudio()
 int md_getFrameCounter()
 {
     return gFrameCounter;
+}
+
+// =============================================================================
+//   MEMORY CARD (backs eepromShim.h's persistent per-game EEPROM emulation)
+// =============================================================================
+// Backed by a real file - a dotfile in the user's home directory, matching
+// crisp-game-lib-portable-sdl's own cglpSDL2.c precedent (loadHighScores()/
+// saveHighScores(), "%s/.cglpscore.dat" against SDL_getenv("HOME")) for the
+// general approach, with one deliberate addition: that reference only ever
+// checks HOME, with no Windows-specific fallback - fine for the shell
+// environments (Git Bash/MSYS/WSL, all of which do set HOME) that project
+// is normally built/run from, but not a safe assumption for every real
+// Windows launch context this project needs to support (a stock cmd.exe
+// session or an Explorer-double-clicked .exe usually has no HOME set at
+// all). USERPROFILE is what Windows itself always sets for every real user
+// session instead - checked here as a genuine second-choice fallback
+// before finally falling back to "." (current directory) as a last
+// resort, matching the reference's own final fallback.
+//
+// Deliberately the exact same file (.tinyjoypad_highscores) and on-disk
+// format as the SDL3 port's own identical implementation - so a player
+// switching between the SDL3 and SDL2 builds on the same machine keeps
+// the same saved high scores either way.
+#define CARD_FILE_NAME ".tinyjoypad_highscores"
+#define CARD_SIGNATURE_TEXT "TINYJOYPADSDL01"
+#define CARD_SIGNATURE_BYTES 32 // just needs to not overlap eepromShim.c's own first slot offset, not to numerically match it
+
+static char gCardFilePath[ 1024 ];
+static bool gCardPathResolved = false;
+
+static void sdlBackendResolveCardFilePath()
+{
+    if( gCardPathResolved )
+      return;
+    gCardPathResolved = true;
+
+    const char* homeDir = SDL_getenv( "HOME" );
+#if defined( _WIN32 )
+    if( homeDir == NULL || homeDir[ 0 ] == 0 )
+      homeDir = SDL_getenv( "USERPROFILE" );
+#endif
+    if( homeDir == NULL || homeDir[ 0 ] == 0 )
+      homeDir = ".";
+
+    SDL_snprintf( gCardFilePath, sizeof( gCardFilePath ), "%s/%s", homeDir, CARD_FILE_NAME );
+}
+
+// Extends a shorter-than-needed file up to minSize with real zero bytes,
+// rather than relying on fseek()-past-EOF-then-write's own implementation-
+// defined gap-filling behavior - a few explicit fwrite() calls is cheap
+// (this file tops out around 36KB - EEPROM_MAX_SLOTS(64) * ~570 bytes/slot)
+// and guarantees identical, correct behavior on every filesystem this
+// project targets rather than trusting an unspecified corner of the C
+// standard.
+static void sdlBackendEnsureFileSize( FILE* fp, long minSize )
+{
+    fseek( fp, 0, SEEK_END );
+    long currentSize = ftell( fp );
+    if( currentSize >= minSize )
+      return;
+
+    static const char zeroBuf[ 4096 ] = { 0 };
+    long remaining = minSize - currentSize;
+    while( remaining > 0 )
+    {
+        long chunk = remaining < (long)sizeof( zeroBuf ) ? remaining : (long)sizeof( zeroBuf );
+        fwrite( zeroBuf, 1, (size_t)chunk, fp );
+        remaining -= chunk;
+    }
+}
+
+bool md_cardIsConnected()
+{
+    sdlBackendResolveCardFilePath();
+
+    // "ab" (append) creates the file if missing without touching any
+    // existing content otherwise - a real permissions/disk-full/etc
+    // failure here correctly leaves eepromCardAvailable false upstream
+    // (eepromShim.c), rather than silently pretending persistence works.
+    FILE* fp = fopen( gCardFilePath, "ab" );
+    if( !fp )
+      return false;
+
+    fclose( fp );
+    return true;
+}
+
+bool md_cardHasOurSignature()
+{
+    char buf[ CARD_SIGNATURE_BYTES ];
+    memset( buf, 0, sizeof( buf ) );
+
+    FILE* fp = fopen( gCardFilePath, "rb" );
+    if( !fp )
+      return false;
+
+    fread( buf, 1, sizeof( buf ), fp );
+    fclose( fp );
+
+    return strncmp( buf, CARD_SIGNATURE_TEXT, strlen( CARD_SIGNATURE_TEXT ) ) == 0;
+}
+
+void md_cardWriteSignature()
+{
+    char buf[ CARD_SIGNATURE_BYTES ];
+    memset( buf, 0, sizeof( buf ) );
+    strncpy( buf, CARD_SIGNATURE_TEXT, sizeof( buf ) - 1 );
+
+    FILE* fp = fopen( gCardFilePath, "r+b" );
+    if( !fp )
+      return;
+
+    sdlBackendEnsureFileSize( fp, (long)sizeof( buf ) );
+    fseek( fp, 0, SEEK_SET );
+    fwrite( buf, 1, sizeof( buf ), fp );
+    fclose( fp );
+}
+
+void md_cardReadData( void* dest, int offsetBytes, int sizeBytes )
+{
+    // Zeroed first so a slot past the current real file length (never
+    // written yet) reads back as real zeroed storage - eepromShim.c's own
+    // "is this slot empty" check (magic != EEPROM_MAGIC) already handles
+    // that correctly with no special-casing needed here.
+    memset( dest, 0, (size_t)sizeBytes );
+
+    FILE* fp = fopen( gCardFilePath, "rb" );
+    if( !fp )
+      return;
+
+    fseek( fp, offsetBytes, SEEK_SET );
+    fread( dest, 1, (size_t)sizeBytes, fp );
+    fclose( fp );
+}
+
+void md_cardWriteData( void* src, int offsetBytes, int sizeBytes )
+{
+    FILE* fp = fopen( gCardFilePath, "r+b" );
+    if( !fp )
+      return;
+
+    sdlBackendEnsureFileSize( fp, (long)( offsetBytes + sizeBytes ) );
+    fseek( fp, offsetBytes, SEEK_SET );
+    fwrite( src, 1, (size_t)sizeBytes, fp );
+    fclose( fp );
 }
 
 // =============================================================================

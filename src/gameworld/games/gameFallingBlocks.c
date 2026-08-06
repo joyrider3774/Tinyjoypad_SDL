@@ -1,6 +1,7 @@
 #include "avrCompat.h"
 #include "machineDependent.h"
 #include "tinyJoypadShim.h"
+#include "eepromShim.h"
 
 // =============================================================================
 // Falling Blocks (upstream folder is the "multi-button" variant of Andy
@@ -136,8 +137,9 @@
 //   glyph (index 0) - a safety fix, not an attempt to guess what the
 //   "correct" glyph should have been, since upstream's own real behavior
 //   for these specific characters was already undefined.
-// - EEPROM high-score persistence dropped (session-only), matching every
-//   other port's precedent. The attract screen's own hold-gestures are
+// - EEPROM high-score persistence restored (see eepromShim.h/.c - a
+//   2-byte big-endian score at address 0, matching upstream exactly).
+//   The attract screen's own hold-gestures are
 //   kept (in-memory flags): hold Fire/Rotate ~2s to toggle the ghost
 //   piece; hold it with Down also held to toggle challenge/hard mode
 //   instead - matching upstream's own dual-gesture structure.
@@ -907,6 +909,9 @@ void tetBeginGameOver()
     {
         tetTop = tetScore;
         tetNewHigh = true;
+        // Direct translation of upstream's own 2-byte big-endian
+        // EEPROM.write(0,...)/EEPROM.write(1,...) topScore save.
+        eeprom_write_word( 0, tetTop );
     }
     else tetNewHigh = false;
 
@@ -919,7 +924,11 @@ void tetBeginGameOver()
 
 void gameFallingBlocks_init()
 {
-    tetTop = 0;
+    // Direct translation of upstream's own topScore = EEPROM.read(0)<<8 |
+    // EEPROM.read(1), guarded against a never-written slot's own virgin
+    // 65535 read the same way as every other game in this pass.
+    tetTop = eeprom_read_word( 0 );
+    if( tetTop == 65535 ) tetTop = 0;
     tetChallengeMode = false;
     tetGhostEnabled = true;
     tetSeqActive = 0;
