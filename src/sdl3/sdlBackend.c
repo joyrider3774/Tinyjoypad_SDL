@@ -395,7 +395,10 @@ void md_endFrame()
 // alongside the exe for this anymore.
 #include "thumbnailData.h"
 
-static SDL_Surface* gThumbnails[ 48 ];
+// Matches gameworld/menu.c's own MAX_GAMES (bumped 48->64 alongside it,
+// same reason - see that file's own comment).
+#define THUMBNAIL_MAX_COUNT 64
+static SDL_Surface* gThumbnails[ THUMBNAIL_MAX_COUNT ];
 static int  gThumbnailCount = -1; // -1 = not yet probed
 
 // Decodes gThumbnailBlobs[] in order, stopping at the first blob that
@@ -409,7 +412,7 @@ static void thumbnailsProbeIfNeeded()
       return;
 
     gThumbnailCount = 0;
-    for( int i = 0; i < gThumbnailBlobCount && i < 48; i++ )
+    for( int i = 0; i < gThumbnailBlobCount && i < THUMBNAIL_MAX_COUNT; i++ )
     {
         SDL_IOStream* io = SDL_IOFromConstMem( gThumbnailBlobs[ i ].data, gThumbnailBlobs[ i ].len );
         SDL_Surface* surf = SDL_LoadBMP_IO( io, true );

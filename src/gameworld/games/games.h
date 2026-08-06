@@ -161,4 +161,39 @@ void gameFallingBlocks_forceRedraw();
 void gameTinyMania_init();
 void gameTinyMania_update();
 
+void gameBlocksGold_init();
+void gameBlocksGold_update();
+void gameBlocksGold_forceRedraw();
+
+void gameAstroBarrier_init();
+void gameAstroBarrier_update();
+void gameAstroBarrier_forceRedraw();
+
+void gameAttinySnake_init();
+void gameAttinySnake_update();
+void gameAttinySnake_forceRedraw();
+
+void gameMeteorStorm_init();
+void gameMeteorStorm_update();
+void gameMeteorStorm_forceRedraw();
+
+void gameFlappyBird_init();
+void gameFlappyBird_update();
+void gameFlappyBird_forceRedraw();
+
+void gameTinyBullsAndCows_init();
+void gameTinyBullsAndCows_update();
+void gameTinyBullsAndCows_forceRedraw();
+
+void gameAttinyTetromino_init();
+void gameAttinyTetromino_update();
+void gameAttinyTetromino_forceRedraw();
+
+void gameLaserPong_init();
+void gameLaserPong_update();
+void gameLaserPong_forceRedraw();
+
+void gamePipeBird_init();
+void gamePipeBird_update();
+
 #endif

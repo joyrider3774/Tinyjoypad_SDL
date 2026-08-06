@@ -101,4 +101,18 @@ void addGames()
     // this port, so NULL here is correct by the same reasoning as Tiny Fi
     // above, not an oversight.
     addGame( "TINY MANIA", "DANIEL C", &gameTinyMania_init, &gameTinyMania_update, NULL );
+
+    // Nine more games backported from the sibling tinyjoypad_vircon32
+    // build's own newest additions (same batch, ported together).
+    addGame( "BLOCKS GOLD", "ANDY JACKSON / JAROMAZ", &gameBlocksGold_init, &gameBlocksGold_update, &gameBlocksGold_forceRedraw );
+    addGame( "ASTRO BARRIER", "SEAN PRICE", &gameAstroBarrier_init, &gameAstroBarrier_update, &gameAstroBarrier_forceRedraw );
+    addGame( "ATTINY SNAKE", "SEAN PRICE", &gameAttinySnake_init, &gameAttinySnake_update, &gameAttinySnake_forceRedraw );
+    addGame( "METEOR STORM", "ALBERT GONZALEZ", &gameMeteorStorm_init, &gameMeteorStorm_update, &gameMeteorStorm_forceRedraw );
+    addGame( "FLAPPY BIRD", "ALEX WULFF", &gameFlappyBird_init, &gameFlappyBird_update, &gameFlappyBird_forceRedraw );
+    addGame( "BULLS AND COWS", "DATACUTE", &gameTinyBullsAndCows_init, &gameTinyBullsAndCows_update, &gameTinyBullsAndCows_forceRedraw );
+    addGame( "ATTINY TETROMINO", "SUNPAZED", &gameAttinyTetromino_init, &gameAttinyTetromino_update, &gameAttinyTetromino_forceRedraw );
+    addGame( "LASER PONG", "WINSTON LU", &gameLaserPong_init, &gameLaserPong_update, &gameLaserPong_forceRedraw );
+    // No onResume needed - gamePipeBird_update() calls pipbRenderFrame()
+    // unconditionally in every state, confirmed correct not an oversight.
+    addGame( "PIPE BIRD", "IOANNIS LAMPROPOULOS", &gamePipeBird_init, &gamePipeBird_update, NULL );
 }

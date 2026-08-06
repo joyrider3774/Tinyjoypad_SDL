@@ -464,7 +464,11 @@ static bool gPrevMenuRight = false;
 // gameworld/menu.c's own identical displayOrder[]/menu_buildDisplayOrder()
 // locally rather than exposing that header-private array through a new
 // cross-port accessor, since nothing else needs it.
-#define MENU_MAX_GAMES 48
+// Bumped 48->64 alongside gameworld/menu.c's own identical MAX_GAMES bump
+// (see that file's own comment) when this project's own registered count
+// reached 50 - keep the two in sync, since this array is a from-scratch
+// reimplementation of that one, not a shared constant.
+#define MENU_MAX_GAMES 64
 static int gDisplayOrder[ MENU_MAX_GAMES ];
 
 static LCDBitmap* gThumbnails[ MENU_MAX_GAMES ];

@@ -14,8 +14,13 @@
 // Bumped 32->48 in the Vircon32 build when Dino Game (its 33rd registered
 // game) was silently dropped by addGame()'s own capacity guard below -
 // kept at that same headroom here for whenever this project's own port
-// count catches up.
-#define MAX_GAMES 48
+// count catches up. Bumped again, 48->64, when this project's own count
+// reached 50 (41 existing + 9 new games in one batch) - the exact same
+// silent-drop risk, just here instead of there this time (addGame()'s own
+// guard below would have quietly dropped the last 2 games with no error
+// at all, not a crash - the kind of bug that's easy to miss until someone
+// notices a game they know they added just isn't in the menu).
+#define MAX_GAMES 64
 
 // How many entries fit in the vertical space between the list's start
 // (y=140) and the bottom of the 360px-tall screen at 24px/row.

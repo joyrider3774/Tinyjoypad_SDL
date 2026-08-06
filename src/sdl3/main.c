@@ -245,6 +245,104 @@ static ScreenshotScript screenshotScriptFor( char* title )
         s.gapFrames = 10;
         s.finalWaitFrames = 190;
     }
+    // BLOCKS GOLD's own attract->playing transition isn't a plain fire-tap
+    // edge: a single tap starts a MUSICWAIT state that plays a full title
+    // jingle (visually identical to the attract screen the whole time -
+    // same gldRenderFrame( GLD_MODE_ATTRACT ) call) before gldBeginGame()
+    // ever actually starts PLAYING. gldGhostEnabled defaults true, which
+    // selects the LONGER of the two jingle variants (GLD_MUSIC_FULL_COUNT,
+    // ~7.8s per that file's own comment =~ 468 real frames) - the default
+    // script's total budget (4 taps * 90-frame gaps =~ 368 frames) doesn't
+    // reach that, so it reliably captured mid-jingle (confirmed: showed the
+    // plain "BLOCKS GOLD" title card, no board/HUD at all). One tap plus a
+    // wait comfortably past 468 frames instead.
+    else if( SDL_strcmp( title, "BLOCKS GOLD" ) == 0 )
+    {
+        s.tapCount = 1;
+        s.gapFrames = 10;
+        s.finalWaitFrames = 550;
+    }
+    // METEOR STORM's ship has no scripted way to dodge (this script can
+    // only hold UP, but this game's own "rise" input is FIRE, not Up) - and
+    // the real, faster death here isn't even an obstacle: with Fire never
+    // pressed, metrCheckMovement()'s own acceleration ramps every movement
+    // tick (every METR_TICK_DIVISOR==2 real frames) up to a capped +5,
+    // pushing the ship down from its METR_PLAYER_INITIAL_Y==40 spawn past
+    // the METR_HEIGHT==64 floor in exactly 13 movement ticks - 26 real
+    // frames - regardless of any obstacle. A first attempt here (50-frame
+    // wait) still reliably outlived that and landed on the post-collision
+    // METR_MODE_FLASH render (confirmed: an inverted, almost-all-white
+    // frame, not the attract screen as first assumed). Shortened well
+    // under that 26-frame hard ceiling instead, same "capture shortly
+    // after the run begins" shape as DINO GAME above.
+    else if( SDL_strcmp( title, "METEOR STORM" ) == 0 )
+    {
+        s.tapCount = 1;
+        s.gapFrames = 5;
+        s.finalWaitFrames = 15;
+    }
+    // FLAPPY BIRD's bird only moves row when Up/Down is pressed - this
+    // script's own held-Up support is edge-triggered (one step, not
+    // continuous), so the bird effectively sits at its fixed spawn row
+    // (row 0) the entire capture. The default script's long total wait
+    // reliably outlives the first wall reaching column 0 with a
+    // misaligned gap, ending in GAME OVER (confirmed: showed the skull/
+    // "Game Over" screen). Walls don't even spawn until ~72 real frames in
+    // (4 movement ticks * 18 frames/tick) and the first spawned wall can't
+    // reach column 0 for a further ~270 frames after that - a shorter wait
+    // lands safely inside that window with a real wall already visible
+    // on-screen, well before any collision is possible.
+    else if( SDL_strcmp( title, "FLAPPY BIRD" ) == 0 )
+    {
+        s.tapCount = 1;
+        s.gapFrames = 10;
+        s.finalWaitFrames = 180;
+    }
+    // PIPE BIRD wraps its ENTIRE update() (including the ATTRACT branch's
+    // own Fire check) in a PIPB_TICK_DIVISOR==2 real-frame skip, so
+    // isFirePressed() - and therefore md_inputFireFrames()'s own fire-gate
+    // disarm check (see machineDependent.h's md_armInputFireGate()) - is
+    // only ever called on every OTHER real frame. A single tap's "true"
+    // pulse (this script's 2nd dispatch, an even/processed frame) lands
+    // BEFORE the gate has had any processed "released" frame to disarm
+    // against yet (the 1st dispatch, an odd/skipped frame, never called
+    // isFirePressed() at all) - so that first pulse is silently swallowed
+    // by the still-armed gate, and with only one tap there's no second
+    // pulse left to actually start PLAYING (confirmed: stayed on the
+    // attract screen the entire capture, even after a generous wait).
+    // Two taps fixes it: the gate reliably disarms during the gap between
+    // them (plenty of processed released-frame reads by then), so the
+    // second tap's pulse is read for real. Once PLAYING, the same
+    // edge-triggered-single-flap/gravity budget as before applies (~54
+    // real frames alive with the one starting flap this script's holdUp
+    // gives, traced through the fixed-point gravity/velocity math) - kept
+    // short and well inside that window, same "capture shortly after the
+    // run begins" shape as DINO GAME/METEOR STORM above.
+    else if( SDL_strcmp( title, "PIPE BIRD" ) == 0 )
+    {
+        s.tapCount = 2;
+        s.gapFrames = 10;
+        s.finalWaitFrames = 25;
+        s.holdUp = true;
+    }
+    // ATTINY SNAKE always starts heading straight DOWN from the grid's own
+    // (0,0) corner and this script sends no turn input at all, so the head
+    // just wraps around the same 8-row column forever - not a bug, but the
+    // default script's own total frame budget (~365 real frames after the
+    // single tap that starts PLAYING) divided by this game's own 15-frame
+    // movement tick lands on exactly 24 moves, and 24 is an exact multiple
+    // of ASNK_ROWS==8 - the head wraps back to EXACTLY its start position,
+    // making a real, moving game look frozen at the attract-screen's own
+    // spawn cell (confirmed: showed just the single starting cell, no
+    // visible movement). Fixed by landing on a real frame count that isn't
+    // a multiple of 8*15==120 real frames, so the head is visibly
+    // elsewhere on its column when captured.
+    else if( SDL_strcmp( title, "ATTINY SNAKE" ) == 0 )
+    {
+        s.tapCount = 1;
+        s.gapFrames = 10;
+        s.finalWaitFrames = 100;
+    }
 
     return s;
 }
