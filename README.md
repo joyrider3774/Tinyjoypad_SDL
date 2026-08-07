@@ -2,14 +2,14 @@
 
 ![Menu screenshot](metadata/menu.png)
 
-A native SDL3 port bringing **50 games**, originally written for the
+A native SDL3 port bringing **53 games**, originally written for the
 [TinyJoypad](https://www.tinyjoypad.com/) ATtiny85 + SSD1306 128x64 OLED
 handheld, behind one shared game-select menu, running as a plain desktop
 executable - no emulator required.
 
 Two more ports also live in this same repo, alongside the primary SDL3
 port in `src/sdl3/`, all three sharing one `src/gameworld/` codebase (all
-50 games, the menu, the shims):
+53 games, the menu, the shims):
 - **SDL2** (`src/sdl2/`) - built by porting `src/sdl3/`'s own platform
   files API-call-by-API-call, then verified functionally identical (every
   behavioral constant, every input mapping table, both passing the same
@@ -143,6 +143,7 @@ Click a thumbnail for the full-size screenshot.
 | Game (in-cartridge title) | Original Author | License | High Score Saved | Source | Screenshot |
 |---|---|---|---|---|---|
 | 2048 | Obono | MIT | — | [TinyJoypadWorks](https://github.com/obono/TinyJoypadWorks) | [<img src="metadata/screenshots/2048.png" width="160">](metadata/screenshots/2048.png) |
+| Ardumania | Daniel C | GPLv3 | ✅ | [phoenixbozo/TinyJoypad](https://github.com/phoenixbozo/TinyJoypad/tree/main/TinyJoypad) | [<img src="metadata/screenshots/ARDUMANIA.png" width="160">](metadata/screenshots/ARDUMANIA.png) |
 | Astro Barrier | Sean Price | GPLv3 | ✅ | [attiny-astro-barrier](https://github.com/SeanP2001/attiny-astro-barrier) | [<img src="metadata/screenshots/ASTRO%20BARRIER.png" width="160">](metadata/screenshots/ASTRO%20BARRIER.png) |
 | ATtiny Snake | Sean Price | GPLv3 | ✅ | [attiny-snake](https://github.com/SeanP2001/attiny-snake) | [<img src="metadata/screenshots/ATTINY%20SNAKE.png" width="160">](metadata/screenshots/ATTINY%20SNAKE.png) |
 | ATtiny Tetromino | Sunpazed | GPLv3 | ✅ | [attiny-tetromino](https://github.com/sunpazed/attiny-tetromino) | [<img src="metadata/screenshots/ATTINY%20TETROMINO.png" width="160">](metadata/screenshots/ATTINY%20TETROMINO.png) |
@@ -155,10 +156,12 @@ Click a thumbnail for the full-size screenshot.
 | Flappy Bird | Alex Wulff | None specified | — | [Instructables](https://www.instructables.com/Flappy-Bird-on-ATtiny85-and-OLED-Display-SSD1306/) | [<img src="metadata/screenshots/FLAPPY%20BIRD.png" width="160">](metadata/screenshots/FLAPPY%20BIRD.png) |
 | Four in a Row | Unknown | None specified | — | [tiny-handheld](https://github.com/Yevgeniy-Olexandrenko/tiny-handheld) | [<img src="metadata/screenshots/FOUR%20IN%20A%20ROW.png" width="160">](metadata/screenshots/FOUR%20IN%20A%20ROW.png) |
 | Frogger | Andy Jackson (art: @senkunmusashi) | Non-commercial, with attribution | ✅ | [Attiny-Arduino-Games](https://github.com/andyhighnumber/Attiny-Arduino-Games) | [<img src="metadata/screenshots/FROGGER.png" width="160">](metadata/screenshots/FROGGER.png) |
+| Gilbert in the Downland | Daniel C | GPLv3 | ✅ | [phoenixbozo/TinyJoypad](https://github.com/phoenixbozo/TinyJoypad/tree/main/TinyJoypad) | [<img src="metadata/screenshots/GILBERT%20IN%20THE%20DOWNLAND.png" width="160">](metadata/screenshots/GILBERT%20IN%20THE%20DOWNLAND.png) |
 | HollowSeeker | Obono | MIT | — | [TinyJoypadWorks](https://github.com/obono/TinyJoypadWorks) | [<img src="metadata/screenshots/HOLLOWSEEKER.png" width="160">](metadata/screenshots/HOLLOWSEEKER.png) |
 | Jump Slime | Kondolab | None specified | — | [note.com](https://note.com/kondolab/n/ndc93ac31e555) | [<img src="metadata/screenshots/JUMP%20SLIME.png" width="160">](metadata/screenshots/JUMP%20SLIME.png) |
 | Laser Pong | Winston Lu | MIT | — | [ATTiny85_Pong](https://github.com/Winston-Lu/ATTiny85_Pong) | [<img src="metadata/screenshots/LASER%20PONG.png" width="160">](metadata/screenshots/LASER%20PONG.png) |
 | Meteor Storm | Albert Gonzalez | Unlicense (public domain) | — | [attiny85_microgame_meteor_storm](https://github.com/theisolinearchip/attiny85_microgame_meteor_storm) | [<img src="metadata/screenshots/METEOR%20STORM.png" width="160">](metadata/screenshots/METEOR%20STORM.png) |
+| Nohzdyve | Daniel C | GPLv3 | ✅ | [phoenixbozo/TinyJoypad](https://github.com/phoenixbozo/TinyJoypad/tree/main/TinyJoypad) | [<img src="metadata/screenshots/NOHZDYVE.png" width="160">](metadata/screenshots/NOHZDYVE.png) |
 | NumberPlace | Obono | MIT | — | [TinyJoypadWorks](https://github.com/obono/TinyJoypadWorks) | [<img src="metadata/screenshots/NUMBERPLACE.png" width="160">](metadata/screenshots/NUMBERPLACE.png) |
 | Oroboros | Ilya Titov | Non-commercial, with attribution | ✅ | [AttinyArcade](https://github.com/webboggles/AttinyArcade) | [<img src="metadata/screenshots/OROBOROS.png" width="160">](metadata/screenshots/OROBOROS.png) |
 | Pipe Bird | Ioannis Lampropoulos | None specified | ✅ | [attiny85-flappy-bird](https://github.com/Lampropoulosss/attiny85-flappy-bird) | [<img src="metadata/screenshots/PIPE%20BIRD.png" width="160">](metadata/screenshots/PIPE%20BIRD.png) |

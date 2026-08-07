@@ -44,7 +44,29 @@
 // would have silently changed what those checks actually detect.
 // =============================================================================
 
-#define EEPROM_TAG_CHARS 24
+// Sized 24 chars at the time this shim was first built - comfortably over
+// the longest real menu title then (18 characters, "WREN ROLLERCOASTER").
+// Bumped to 32 (8 chars of real margin over the new longest title) when
+// "GILBERT IN THE DOWNLAND" (23 characters) shipped - ported directly from
+// the sibling tinyjoypad_vircon32 build's own identical proactive fix
+// there (its own EEPROM_TAG_WORDS 24->32), made after a direct user
+// question caught that title landing with genuinely zero spare capacity
+// in ITS OWN 24-word buffer there (an unbounded `strcpy()`, one character
+// away from overflowing into the next struct field). This project's own
+// `eepromResetCurrentSlotToFresh()` already uses a bounded `strncpy()`
+// (see that function's own comment) so a too-long title here would only
+// ever truncate, never overflow into `magic`/`checksum` - but the same
+// margin-widening is still worth mirroring, since a truncated tag would
+// silently break that specific game's own save-matching (the stored,
+// truncated tag would never again equal the real full title on a future
+// lookup) rather than corrupting anything. Changes the on-disk slot size
+// (EEPROM_SLOT_BYTES derives from sizeof(EepromSlot)), so any high scores
+// already saved under the old 24-char layout land at different offsets
+// under this one and read back as "no matching slot" (a fresh, zeroed
+// high score) rather than being corrupted - an acceptable, one-time reset
+// this early in the project's own life, not something worth writing
+// migration code for.
+#define EEPROM_TAG_CHARS 32
 #define EEPROM_SLOT_DATA_SIZE 512
 #define EEPROM_MAGIC 0x45455032
 #define EEPROM_MAX_SLOTS 64

@@ -343,6 +343,26 @@ static ScreenshotScript screenshotScriptFor( char* title )
         s.gapFrames = 10;
         s.finalWaitFrames = 100;
     }
+    // ARDUMANIA's own default-script capture landed mid-way through
+    // AMANIA_STATE_LEVEL_TRANSITION - a real, several-second animated
+    // sequence (the player walks off-screen, reverses, walks back trailing
+    // the level's own ghost count, against a scrolling border and a
+    // repeating decorative railing texture) that runs between the menu and
+    // real gameplay, not a bug (confirmed via a temporary debug trace of
+    // amaniaState, since the captured frame - a screen-filling diagonal
+    // hatch pattern with no player/dots/ghosts visible - looked exactly
+    // like a broken render at first glance). Traced through the actual
+    // amaniaTransA bounds math: phase D=0 runs from 127 down to -16 (143
+    // ticks), phase D=1 from -16 up to 157+(ghostCount-1)*20 at +2/tick
+    // (~117 ticks for a typical early-level ghost count) - roughly 260
+    // real frames total, and the default script's own budget (4 taps *
+    // 90-frame gaps = 368 frames, most of it already spent leaving the
+    // splash/menu screens first) doesn't clear it. A longer final wait
+    // gives the transition room to finish and land in real PLAYING.
+    else if( SDL_strcmp( title, "ARDUMANIA" ) == 0 )
+    {
+        s.finalWaitFrames = 150;
+    }
 
     return s;
 }

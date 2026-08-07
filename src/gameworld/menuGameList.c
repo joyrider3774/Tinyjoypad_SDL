@@ -115,4 +115,18 @@ void addGames()
     // No onResume needed - gamePipeBird_update() calls pipbRenderFrame()
     // unconditionally in every state, confirmed correct not an oversight.
     addGame( "PIPE BIRD", "IOANNIS LAMPROPOULOS", &gamePipeBird_init, &gamePipeBird_update, NULL );
+
+    // Three more games backported from the sibling tinyjoypad_vircon32
+    // build's own newest additions - all 3 originally Arduboy-exclusive
+    // titles, staged from Daniel C's own ESP8285/ESP8266 "MEGA TinyJoypad"
+    // combined-cartridge port rather than the raw Arduboy originals.
+    // No onResume needed - gameNohzdyve_update() calls ndvRenderFrame()
+    // unconditionally in every state, same as Pipe Bird above.
+    addGame( "NOHZDYVE", "DANIEL C", &gameNohzdyve_init, &gameNohzdyve_update, NULL );
+    // No onResume needed - gameGilbertDownland_update() calls
+    // gitdRenderFrame() unconditionally in every state, same reasoning.
+    addGame( "GILBERT IN THE DOWNLAND", "DANIEL C", &gameGilbertDownland_init, &gameGilbertDownland_update, NULL );
+    // No onResume needed - gameArdumania_update() calls amaniaRenderFrame()
+    // unconditionally in every state, same reasoning as the 2 games above.
+    addGame( "ARDUMANIA", "DANIEL C", &gameArdumania_init, &gameArdumania_update, NULL );
 }

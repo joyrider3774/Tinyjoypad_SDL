@@ -196,4 +196,13 @@ void gameLaserPong_forceRedraw();
 void gamePipeBird_init();
 void gamePipeBird_update();
 
+void gameNohzdyve_init();
+void gameNohzdyve_update();
+
+void gameGilbertDownland_init();
+void gameGilbertDownland_update();
+
+void gameArdumania_init();
+void gameArdumania_update();
+
 #endif
