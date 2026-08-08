@@ -205,4 +205,32 @@ void gameGilbertDownland_update();
 void gameArdumania_init();
 void gameArdumania_update();
 
+void gameRoadRush_init();
+void gameRoadRush_update();
+void gameRoadRush_forceRedraw();
+
+void gameDFlight_init();
+void gameDFlight_update();
+void gameDFlight_forceRedraw();
+
+void gameMazeRunner_init();
+void gameMazeRunner_update();
+void gameMazeRunner_forceRedraw();
+
+void gameAsteroid_init();
+void gameAsteroid_update();
+void gameAsteroid_forceRedraw();
+
+void gameHelicopter_init();
+void gameHelicopter_update();
+void gameHelicopter_forceRedraw();
+
+void gameCarRace_init();
+void gameCarRace_update();
+void gameCarRace_forceRedraw();
+
+void gameTinyBlocks_init();
+void gameTinyBlocks_update();
+void gameTinyBlocks_forceRedraw();
+
 #endif

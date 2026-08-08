@@ -363,6 +363,129 @@ static ScreenshotScript screenshotScriptFor( char* title )
     {
         s.finalWaitFrames = 150;
     }
+    // ROAD RUSH's own title->gameplay chain is unusually long (ATTRACT ->
+    // a ~91-tick waving-flag animation -> a ~139-tick scrolling intro
+    // story -> a 61-tick level-slider -> real driving) - the default
+    // script's own budget reliably lands mid-scroll (confirmed via a
+    // temporary debug trace of drvState/drvStateTicks: state=2 i.e.
+    // DRV_STATE_INTRO_SCROLL, only 46 of ~139 ticks in). A longer final
+    // wait gives the rest of the fixed-duration chain room to finish and
+    // land a few ticks into real DRV_STATE_PLAYING.
+    else if( SDL_strcmp( title, "ROAD RUSH" ) == 0 )
+    {
+        s.finalWaitFrames = 350;
+    }
+    // Same class of issue as ROAD RUSH above (both share tonym128's own
+    // BFlight scroller/takeoff chain shape) - default script's own trace
+    // showed FLY_STATE_INTRO_SCROLL only 2 ticks short of finishing, then
+    // a ~112-tick takeoff flight-in animation still ahead of it before
+    // real level scrolling begins.
+    else if( SDL_strcmp( title, "DFLIGHT" ) == 0 )
+    {
+        s.finalWaitFrames = 270;
+    }
+    // Same tonym128/BFlight chain shape again (MRUNNR's own intro-scroll +
+    // a 121-tick level-bars countdown ahead of real MZ_STATE_PLAY) -
+    // default trace showed MZ_STATE_INTRO_SCROLL only 2 ticks short of
+    // finishing.
+    else if( SDL_strcmp( title, "MRUNNR" ) == 0 )
+    {
+        s.finalWaitFrames = 290;
+    }
+    // ASTEROID (tonym128's own older ESP8266GameOn) has the longest chain
+    // of the 4 tonym128 ports: a fixed 61-tick logo hold, then ATTRACT,
+    // then a ~139-tick intro scroll (default trace landed only 91 ticks
+    // in), then a 101-tick level-slider still ahead before real
+    // AST_STATE_PLAY.
+    else if( SDL_strcmp( title, "ASTEROID" ) == 0 )
+    {
+        s.finalWaitFrames = 340;
+    }
+    // CAR RACE throttles its own input sampling to once every
+    // CR_TICK_DIVISOR==12 real frames, and only recognizes Fire via
+    // md_recentlyPressed() - true only while the button is CURRENTLY held
+    // and has been for <=12 frames (see machineDependent.h's own comment).
+    // The default script's single-real-frame Fire pulse per tap is
+    // essentially never still "down" at the next 1-in-12 sampled dispatch,
+    // and worse, the default 90-frame gap (90 mod 12 == 6, sharing a
+    // factor of 6 with 12) means every tap keeps landing on the same 2 of
+    // 12 possible phase offsets - if neither is the "hit" phase, this is a
+    // deterministic miss no matter how many default-shaped taps are added
+    // (confirmed: 4 default taps produced zero CR_STATE_PLAY transitions,
+    // stuck on CR_STATE_TITLE the entire time). The real frame distance
+    // *between* successive Fire-true pulses is gapFrames + 2, not
+    // gapFrames + 3 as the tap block's own total length (false/true/false
+    // + gap) might suggest - the "+3" already counts the true-pulse frame
+    // itself, which shouldn't be double-counted on both ends when
+    // measuring gaps *between* pulses. Two earlier attempts got this off
+    // by one and landed on a real distance sharing a factor with 12 (16
+    // and 12 respectively - a genuine debug trace of crTickCounter/fire
+    // state confirmed pulses landing on the exact same phase every single
+    // time, never shifting). gapFrames=9 (real distance 9+2=11,
+    // gcd(11,12)==1) fixes the phase-sweep itself - each successive
+    // pulse's phase now genuinely advances by 1 (mod 12), guaranteed
+    // (pigeonhole) to sweep all 12 possible phases within any 12
+    // consecutive taps. But a 12-13 tap run alone still isn't enough: the
+    // one tick=12 hit inside the *first* 12-tap sweep landed during
+    // CR_STATE_SPLASH (a fixed ~120-real-frame hold that ignores Fire
+    // entirely), before CR_STATE_TITLE even begins - wasted. Fixing the
+    // phase-sweep just relocates the miss, it doesn't remove it, since a
+    // single sweep is shorter than splash's own hold. 25 taps (a second
+    // full 12-phase sweep, confirmed via the same debug trace: the 2nd
+    // sweep's own tick=12 hit landed at real frame ~155, already well
+    // past splash, correctly inside CR_STATE_TITLE, and CR_STATE_PLAY
+    // began the very next tap) guarantees a real hit after splash ends
+    // regardless of exactly when that first sweep's own phases happened
+    // to fall.
+    else if( SDL_strcmp( title, "CAR RACE" ) == 0 )
+    {
+        s.tapCount = 25;
+        s.gapFrames = 9;
+        s.finalWaitFrames = 100;
+    }
+    // HELICOPTER's default-script capture landed on GAME_OVER, not real
+    // gameplay - confirmed non-deterministic run-to-run, not a fixed
+    // timing miss (some runs instead landed on a bare ATTRACT-screen cave
+    // silhouette with no HUD, which at a glance looked like "real
+    // gameplay" but wasn't - only caught by direct user report that the
+    // screenshot showed GAME_OVER after this same default script had
+    // "worked" earlier). Root-caused via a temporary debug trace of
+    // heliState/md_inputFireFrames(): `gInputFireGateActive` (armed at
+    // every game launch, to keep the menu-selecting Fire press from
+    // bleeding into the game - see machineDependent.h's own comment) only
+    // disarms itself the moment some later call to md_inputFireFrames()
+    // happens to sample the button *already released*; this game's own
+    // tick divisor only samples input on every 2nd real frame, and the
+    // very first such sample lines up exactly with this game's own first
+    // scripted Fire-press frame (true by construction, not chance, given
+    // the script's own false/true/false shape starting at a fixed real-
+    // frame offset since launch) - so the gate's first-ever check sees
+    // the button already held, never disarms, and silently eats that
+    // entire first press every single time. A couple of short follow-up
+    // scripts (1-2 taps, tuned to stay inside the short safe-capture
+    // window below) still wasted their only real attempts the same way,
+    // landing back on the plain ATTRACT screen instead - this needs
+    // enough independent press attempts to reliably clear the latch
+    // first, not just a shorter script. Once free of the gate, this game
+    // has its own short, deterministic window worth landing inside rather
+    // than surviving real physics for: `heliBeginPlay()` holds every real
+    // frame for a fixed `HELI_READY_TICKS==30` throttled ticks (60 real
+    // frames) with the helicopter simply drawn at rest - no gravity, no
+    // collision, no score - before real (RNG-seeded, so never reliably
+    // survivable by a fixed scripted input sequence) physics starts.
+    // Fixed with 6 short taps, 3 frames apart (real distance between
+    // presses = 5, odd relative to the divisor-2 sampling, so each tap's
+    // own phase alternates and a press attempt is guaranteed at both
+    // sampling parities within a couple of taps) - confirmed by direct
+    // repeated testing of the real (non-debug) build, 5 independent runs
+    // pixel-diffed byte-identical, landing every time with ready ticks
+    // still comfortably >0, the helicopter and cave both clearly visible.
+    else if( SDL_strcmp( title, "HELICOPTER" ) == 0 )
+    {
+        s.tapCount = 6;
+        s.gapFrames = 3;
+        s.finalWaitFrames = 15;
+    }
 
     return s;
 }

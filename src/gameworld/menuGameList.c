@@ -129,4 +129,30 @@ void addGames()
     // No onResume needed - gameArdumania_update() calls amaniaRenderFrame()
     // unconditionally in every state, same reasoning as the 2 games above.
     addGame( "ARDUMANIA", "DANIEL C", &gameArdumania_init, &gameArdumania_update, NULL );
+    // gameRoadRush_update() already redraws unconditionally every
+    // dispatched tick in every state (same as the 4 games above), so
+    // onResume isn't strictly required - wired anyway as a harmless
+    // defensive extra, matching this project's own precedent of erring
+    // toward wiring it when a game has any indefinite-wait state (here,
+    // the added attract screen).
+    addGame( "ROAD RUSH", "TONYM128", &gameRoadRush_init, &gameRoadRush_update, &gameRoadRush_forceRedraw );
+    // Same reasoning as Road Rush above - onResume wired defensively
+    // since this game also has an indefinite-wait attract screen.
+    addGame( "DFLIGHT", "TONYM128", &gameDFlight_init, &gameDFlight_update, &gameDFlight_forceRedraw );
+    // Same reasoning again - closes out the BFlight bundle.
+    addGame( "MRUNNR", "TONYM128", &gameMazeRunner_init, &gameMazeRunner_update, &gameMazeRunner_forceRedraw );
+    // ESP8266GameOn (tonym128's older, predecessor repo to BFlight) -
+    // its own attract screen has a real, indefinite "press a button"
+    // wait state, same onResume reasoning as every other tonym128 port.
+    addGame( "ASTEROID", "TONYM128", &gameAsteroid_init, &gameAsteroid_update, &gameAsteroid_forceRedraw );
+    // Arduino-Game-System (Finn Harms) - a real, indefinite attract-
+    // screen wait state, same onResume reasoning as above.
+    addGame( "HELICOPTER", "FINN HARMS", &gameHelicopter_init, &gameHelicopter_update, &gameHelicopter_forceRedraw );
+    // Esp8266OledGame (hoangminh5210119) - a real, indefinite title-
+    // screen wait state, same onResume reasoning as above.
+    addGame( "CAR RACE", "HOANGMINH5210119", &gameCarRace_init, &gameCarRace_update, &gameCarRace_forceRedraw );
+    // A real, indefinite-wait attract/game-over screen (added, upstream
+    // has neither) - onResume wired defensively, matching every other
+    // recent port's own standing reasoning.
+    addGame( "TINY BLOCKS", "ROBOTMASTERC", &gameTinyBlocks_init, &gameTinyBlocks_update, &gameTinyBlocks_forceRedraw );
 }
