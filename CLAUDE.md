@@ -1277,6 +1277,289 @@ the Vircon32 sibling's own version *was* directly play-tested and
 confirmed by the user, which is reasonable confidence given the logic is
 byte-identical, but worth a direct play-test here too if time allows.
 
+## Game logic decoupled from the display's own real refresh rate (100Hz/144Hz monitor speed-up bug)
+
+Direct user question: "what would happen if people had 100 hz refresh
+rate monitors and enable vsync?" With vsync on, `SDL_RenderPresent()`
+(called once per real loop iteration) paces the whole loop to the
+display's own actual refresh rate - true 60Hz only by accident on an
+old fixed-60Hz display. Every game's own timing (movement/physics/
+animation tick-divisors, and `md_updateAudio()`'s own `gFrameCounter`-
+based tone-duration/note-sequencer scheduling) assumes exactly
+`MD_FRAMES_PER_SECOND==60` `gamesMain_dispatchFrame()` calls happen per
+real second - a 100Hz/144Hz monitor would call it 100/144 times a
+second instead, running every game proportionally too fast. The exact
+same class of bug (display refresh rate leaking into game-logic rate)
+was already found and fixed for the Playdate port's own hardware-capped
+50fps refresh rate (see "The Playdate port" above, its own
+`md_updateAudio()` fractional accumulator).
+
+Fixed in both `src/sdl3/main.c` and `src/sdl2/main.c` with a real
+fixed-timestep game loop: real elapsed wall-clock time
+(`SDL_GetPerformanceCounter()`, immune to the display's own refresh
+rate) accumulates into `logicAccumulator`, and `gamesMain_dispatchFrame()`
++ `md_updateAudio()` + `obonoCoreShimUpdateSound()` only run once a full
+`1/60`s has accumulated - possibly more than once per real loop
+iteration on a *slower*-than-60Hz display (each extra tick's own
+drawing is harmlessly overwritten by the next before anything is
+presented, the standard "catch up, then show only the latest state"
+shape). `elapsedSeconds` is clamped to 5 ticks' worth before
+accumulating, to avoid a spiral-of-death catch-up storm after a real
+stall (window drag, alt-tab, a debugger breakpoint). See `main.c`'s own
+inline comment at the loop itself for the full reasoning - not
+duplicated here.
+
+## Real persistent high-score saving, `eepromShim` ported from the sibling Vircon32 build
+
+Direct user request, after checking the sibling `tinyjoypad_vircon32`
+project's own `eepromShim` (see that project's own CLAUDE.md "Real
+persistent high-score saving, restored via a fake eeprom.h shim backed
+by Vircon32's memory card" section): port the same fake-`<avr/eeprom.h>`
+shim to this project, but back it with a real dotfile
+(`.tinyjoypad_highscores`) in the user's home directory instead of
+Vircon32's own memory-card hardware, working on Windows/Mac/Linux -
+checked `crisp-game-lib-portable-sdl`'s own SDL port for home-directory
+detection precedent (`SDL_getenv("HOME")` only, no Windows fallback).
+
+New shared files `src/gameworld/eepromShim.h`/`.c` reproduce the same
+public API and on-disk slot-format/hashing scheme as the sibling's own
+shim (`eeprom_read_byte`/`_write_byte`/`_update_byte`/`_read_word`/
+`_write_word`/`_read_dword`/`_write_dword`/`_read_block`/`_write_block`/
+`_busy_wait`), with `title` a real `char*` instead of Vircon32's own
+`int[]`-string dialect, and `eepromSelectGame()` called automatically by
+`gamesMain.c` right before a newly-chosen game's `init()` runs (not
+something any individual game calls itself). Backed via new
+`md_card*()` primitives in `machineDependent.h`
+(`md_cardIsConnected`/`md_cardHasOurSignature`/`md_cardWriteSignature`/
+`md_cardReadData`/`md_cardWriteData`), implemented per-port:
+- **SDL3/SDL2** (`sdlBackend.c`, both ports) - a real file at
+  `$HOME/.tinyjoypad_highscores`, with a genuine improvement over the
+  `crisp-game-lib-portable-sdl` reference: `USERPROFILE` is checked as a
+  fallback when `HOME` is unset (common on Windows - a plain terminal
+  session or an Explorer-double-clicked `.exe` usually has no `HOME` set
+  at all, but Windows itself always sets `USERPROFILE`), falling back to
+  `.` (cwd) only if neither exists.
+- **Playdate** (`src/playdate/main.c`) - `pd->file`, writing to
+  `highscores.dat` in the game's own sandboxed Data folder. Playdate's
+  file API has no true random-access read-modify-write, so this reads
+  the whole file into memory, patches the relevant slot, and writes the
+  whole file back - added at direct user follow-up request ("also add to
+  the todo to add an implementation for playdate by saving a file to the
+  data folder of the port"), not left as a stub the way some other
+  Playdate-irrelevant SDL-only features are.
+
+`EEPROM_TAG_CHARS` (the per-slot title-tag buffer size) is 32, bumped
+from an initial 24 once a real title needed the headroom (see the 3-game
+batch below).
+
+17 already-ported games had their own upstream EEPROM save/load restored
+(Pipe Bird, Frogger, Tiny Tris, UFO, Stacker, Wren Rollercoaster, Astro
+Barrier, ATtiny Snake, Blocks Gold, ATtiny Tetromino, Tiny Invaders,
+Space Attack, Falling Blocks, Breakout, Oroboros, Run Dude Run) plus one
+deliberate extension beyond upstream (**Tiny Bert** - a new dword-based
+5-digit score, upstream never had persistence at all, matching this
+project's own established "deliberate extension, not restoration"
+precedent, later followed for Helicopter/Nohzdyve/Car Race too - see
+below). `README.md` gained a "Save"/"High Score Saved" column with ✅
+markers for every EEPROM-enabled game.
+
+**Note on repo location**: this fix was first mistakenly applied to
+`C:\github\tinyjoypad_SDL3` (lowercase, "3" suffix) - a different,
+apparently-stale directory with an identical-looking codebase, not this
+project. Caught and corrected directly by the user; that other directory
+still has the same edits applied (harmless, but not the real project).
+
+## Playdate system-menu crash fixed: `getMenuItemValue` called with a NULL menu item
+
+Direct user bug report: "in the playdate version there is a bug with the
+system menu's if i am inside a game call the system menu from playdate
+then check pixel grid, then uncheck pixel grid and then choose return to
+menu i get this error 'pd_getMenuItemValue: non-NULL value required for
+argument 'menuItem''". Root-caused against the official Playdate SDK
+docs: `addCheckmarkMenuItem()`'s own callback is deferred until the
+system menu closes if the item was interacted with while the menu was
+still open ("If this menu item is interacted with while the system menu
+is open, callback will be called when the menu is closed" - the SDK's
+own doc comment). The reported sequence (open system menu -> toggle
+Pixel Grid off -> immediately choose "Menu" to return, all before
+closing the system menu) fires `returnToMenu()` - which tears down every
+system menu item via `pd->system->removeAllMenuItems()`, setting
+`gPixelGridMenuItem` back to `NULL` - *before* the deferred pixel-grid
+checkbox callback (`pixelGridMenuCallback()`) actually runs, so it reads
+back a value from a menu item that no longer exists.
+
+Fixed with a defensive guard at the top of `pixelGridMenuCallback()`
+(`src/playdate/main.c`): `if( gPixelGridMenuItem == NULL ) return;`
+before the `pd->system->getMenuItemValue()` call. Verified with a clean
+rebuild (`cmake --build build`) - needed killing a locked
+`PlaydateSimulator.exe` process first (its own open handle on the
+built `pdex.dll` blocked the copy step); confirmed via `AskUserQuestion`
+before doing so, since killing a running process the user might still
+be using is exactly the kind of action worth confirming rather than
+doing unilaterally.
+
+## Three more games backported: Nohzdyve, Gilbert in the Downland, Ardumania
+
+The sibling `tinyjoypad_vircon32` project added 3 more games in its own
+history (all 3 originally Arduboy-exclusive titles, staged from Daniel
+C's own ESP8285/ESP8266 "MEGA TinyJoypad" combined-cartridge port rather
+than the raw Arduboy originals). Ported the same established way:
+background porting agents given the sibling's own already-correct
+Vircon32-dialect source plus this project's own dialect-conversion
+recipe, independently re-verified afterward (including a Python
+data-table diff script proving byte-exact matches against the sibling
+source: 33/33, 57/57, 53/53 array elements for the 3 games
+respectively) rather than trusted at face value. None of the 3 needed
+`forceRedraw` (each one's own `_update()` redraws unconditionally in
+every state, same reasoning already established for Tiny Fi/Tiny
+Mania). `EEPROM_TAG_CHARS` bumped 24->32 (see above) specifically for
+"GILBERT IN THE DOWNLAND", a 23-character title that didn't fit the old
+buffer.
+
+**A real mid-task correction**: the porting agent for Nohzdyve was
+initially told "no EEPROM needed", based on a stale header comment in
+the sibling source - the actual code had real `eeprom_read_word`/
+`eeprom_write_word` calls (a later addition upstream, inconsistent with
+its own now-stale header). Caught by direct user instruction ("do port
+eeprom from noyzdive also") after the file had already been created;
+fixed by patching the EEPROM calls in directly (including correcting
+the stale header comment to explain the situation accurately, matching
+the Tiny Bert "deliberate extension, not restoration" precedent above).
+
+Ardumania's own default `-ms` screenshot script landed mid-way through
+`AMANIA_STATE_LEVEL_TRANSITION` - a real several-second animated
+sequence (the player walks off-screen, reverses, walks back trailing the
+level's own ghost count, against a scrolling border and a repeating
+decorative railing texture) between the menu and real gameplay, not a
+bug (confirmed via a temporary debug trace of `amaniaState`, since the
+captured frame - a screen-filling diagonal-hatch pattern with no
+player/dots/ghosts visible - looked exactly like a broken render at
+first glance). Fixed with a longer `finalWaitFrames=150` override in
+`screenshotScriptFor()`, both SDL ports.
+
+Thumbnails/screenshots/`.joy` files added for all 3 (registered after
+the existing games, per this project's own standing "only ADD new asset
+files, never regenerate existing ones" practice).
+
+## Seven more games backported: Road Rush, DFlight, MRunnr, Asteroid, Helicopter, Car Race, Tiny Blocks
+
+The sibling project's own newest batch, all from real ESP8266/ESP8285
+hardware ports rather than the original ATtiny85 lineage: Road Rush,
+DFlight, and MRunnr are all from Tony M's (tonym128) own `BFlight`
+repo; Asteroid is from his earlier `ESP8266GameOn`; Helicopter is Finn
+Harms' (innif) `Arduino-Game-System`; Car Race is hoangminh5210119's
+`Esp8266OledGame`; Tiny Blocks is RobotMasterC's `TinyTetris` (renamed
+to avoid the trademarked genre name in this project's own title/source
+files, matching the existing Falling Blocks/Blocks Gold precedent).
+Helicopter and Car Race needed EEPROM restored (word-based scores,
+ported the same way as the 17-game EEPROM batch above); the other 5
+have none upstream, none added.
+
+Dispatched to 7 parallel background porting agents, each given the
+sibling's own dialect-correct source plus the established recipe, then
+**independently re-verified rather than trusted at face value** - this
+batch is exactly why that discipline exists:
+
+- **Three separate data-table transcription bugs**, all the same shape
+  and all in different games' own 6144-value font tables
+  (`heliFontData`, `flyFontData`, `tnbFontData` - Helicopter, DFlight,
+  Tiny Blocks respectively): each agent's own manual transcription
+  silently dropped 32-64 values (1-2 lines) despite every agent
+  self-reporting a clean byte-for-byte verification. All three compiled
+  without error or warning (C silently zero-fills a short array
+  initializer) and would **not** have been caught without the dedicated
+  Python data-table-diff script this project already relies on for
+  exactly this failure mode (see the TinySQuest/Tiny Bomber precedent
+  earlier in this file). Fixed identically each time: locate the exact
+  line range of the real array literal in the sibling's own source,
+  extract it verbatim, and splice it into the ported file in place of
+  the corrupted range (never hand-retype a large data table) - then
+  recompile and re-run the diff script to confirm zero mismatches.
+  Road Rush and Car Race's own porting agents *also* independently hit
+  and self-corrected the identical bug class in their own largest
+  tables (`drvFontData`/`drvFlag`, `crCrashData`/`crFontData`) before
+  ever reporting back, using the same numeric-diff-not-eyeball
+  technique - all 7 games' full data-table sets were still independently
+  re-diffed afterward regardless, given how often this exact bug
+  recurred in this one batch.
+
+Registered in `games.h`/`menuGameList.c` afterward (all 7 needing
+`forceRedraw` wired, unlike the 3-game batch above - each has a real
+attract-screen wait state).
+
+**`-ms` screenshot-script tuning needed for 5 of the 7** (only
+Helicopter and Tiny Blocks - see below re: Helicopter - looked right on
+inspection; Tiny Blocks' default script genuinely worked first try):
+
+- **Road Rush, DFlight, MRunnr, Asteroid** (all sharing tonym128's own
+  scroller/level-slider chain shape) all have an unusually long,
+  entirely fixed-duration title->gameplay chain (a waving-flag/level-bar
+  animation, then a multi-line scrolling intro story, sometimes a
+  level-slider too) that the default script's own budget reliably lands
+  mid-way through - confirmed via a temporary debug trace of each game's
+  own state/tick counters, not assumed. Fixed with a longer
+  `finalWaitFrames` per game (350/270/290/340 respectively), keeping the
+  default tap/gap shape (already proven reliable for leaving each
+  game's own initial ATTRACT state).
+- **Car Race** throttles its own input sampling to once every
+  `CR_TICK_DIVISOR==12` real frames via `md_recentlyPressed()`, true
+  only while Fire is *currently* held and has been for `<=12` frames -
+  the default script's single-real-frame Fire pulse is essentially never
+  still "down" at the next 1-in-12 sampled dispatch. Two off-by-one
+  attempts at a coprime-gap phase-sweep fix (see `screenshotScriptFor()`'s
+  own comment for the exact arithmetic mistake each time, confirmed via a
+  direct debug trace of `crTickCounter`/fire state showing pulses landing
+  on the *identical* phase every single time) were needed before landing
+  on the real fix: `gapFrames=9` (real distance between pulses = 11,
+  coprime with 12) swept every phase, but a single 12-tap sweep's own
+  lucky hit still landed *during* `CR_STATE_SPLASH` (which ignores Fire
+  entirely for a fixed ~120-real-frame hold) - needing a **second** full
+  12-phase sweep (25 taps total) to guarantee a hit lands after splash
+  ends, inside `CR_STATE_TITLE` where it actually matters.
+- **Helicopter** initially looked fine (a plain default-script capture
+  showed real cave terrain) but a later direct user report caught it
+  showing `GAME_OVER` instead - confirmed non-deterministic run-to-run,
+  not a fixed timing miss (some runs even landed on a bare ATTRACT
+  screen that, without a HUD, superficially looked like real gameplay at
+  a glance). Root-caused via a debug trace of `md_inputFireFrames()`:
+  `gInputFireGateActive` (armed at every game launch to keep the
+  menu-selecting Fire press from bleeding into the game) only disarms
+  once some call samples the button already released - this game's own
+  every-2nd-real-frame input sampling lines up its very *first* such
+  sample with its own first scripted press frame by construction, so the
+  gate never disarms and silently eats that whole first attempt, every
+  time. Fixed with 6 short taps 3 frames apart (real distance 5, odd
+  relative to the divisor-2 sampling, sweeping both parities within a
+  couple of taps) landing inside `heliBeginPlay()`'s own fixed
+  `HELI_READY_TICKS==30`-tick physics-free hold (helicopter drawn at
+  rest, no gravity/collision/score) rather than trying to survive real,
+  RNG-seeded physics at all - confirmed via 5 independent full runs of
+  the real (non-debug) build, pixel-diffed byte-identical.
+
+New thumbnails/screenshots/`.joy` files for all 7 (indices 53-59),
+generated the same crop/resize pipeline as every prior batch (`-crop
+640x320+0+20 +repage -resize 256x128`, confirmed pixel-exact against an
+existing checked-in thumbnail before trusting it on the new 7).
+
+**README.md's own "Games" section replaced verbatim** with the
+sibling's own current one (direct user request: "match exactly"),
+including its own 7-column format (`Game | Author | MCU | License |
+Save | Source | Screenshot`, thumbnail `width="80"`) rather than this
+project's own previously-different column set/width - a deliberate
+divergence from this file's own general "don't duplicate the sibling's
+own docs" policy, since the user explicitly wants this one section
+byte-identical rather than independently maintained. One real
+discrepancy found doing this: the sibling's own table links
+`TINY BULLS AND COWS.png`, but its own registered in-game title (and
+every other screenshot's own naming convention, filename == title) is
+`BULLS AND COWS` - a pre-existing inconsistency in the sibling's own
+repo (its file legitimately exists under the mismatched name, so the
+link itself wasn't broken there, just inconsistent). Fixed in *both*
+repos: renamed the sibling's own screenshot file to match its
+convention (`git mv`, confirmed no other reference to the old name
+anywhere in that repo) and updated both READMEs' own table rows to
+match - rather than only patching around it in this project alone.
+
 ## Eight more games backported from upstream (and two follow-up fixes)
 
 The sibling `tinyjoypad_vircon32` project added 7 new games in its own
@@ -1407,7 +1690,7 @@ eye before cropping.
 
 ## Status
 
-All 41 games ported, verified, and wired into the menu on all three ports
+All 60 games ported, verified, and wired into the menu on all three ports
 (`src/sdl3/`, `src/sdl2/`, `src/playdate/`); the menu shows real gameplay
 thumbnails on every port. CLI parameters, FPS display, and the batch-
 screenshot tool are in place on both SDL ports; all three presentation
@@ -1418,7 +1701,13 @@ and the `-fps` overlay's own rect (`md_setFpsOverlayShowing()`, same
 re-composite-on-top technique, added later on direct user request since
 the overlay reads a lot less useful blurred/scanlined along with the
 actual gameplay) while still applying to the rest of the frozen screen
-behind either. Packaging
+behind either. Real, persistent high-score saving (`eepromShim`, see its
+own section above) is live for every game that ever had one upstream
+(plus a few deliberate extensions) on all three ports - a real dotfile
+on the SDL ports, a real sandboxed Data-folder file on Playdate - and
+game logic on both SDL ports is decoupled from the display's own actual
+refresh rate (see the 100Hz/144Hz section above), not just assumed 60Hz.
+Packaging
 is done: both SDL ports now embed their thumbnails directly into the exe
 at compile time (`tools/gen_thumbnails.py` -> `assets/thumbnails/
 thumbnailData.h`, see "Thumbnails" above - no more post-build `assets/`
@@ -1431,8 +1720,11 @@ there's no on-screen indicator for any of the three. The Playdate port has
 its own from-scratch paginated menu (see "The Playdate port" above), its
 own pixel-grid-only effect toggle plus a "Menu" entry exposed through
 Playdate's own system menu rather than a spare button, and its own 50fps-
-compensated audio/frame-counter handling. Not yet done: nothing currently
-tracked - revisit this section as new work starts.
+compensated audio/frame-counter handling. `README.md`'s own "Games"
+section is kept byte-identical to the sibling project's own (see the
+7-game batch section above) - re-copy it verbatim rather than hand-editing
+it independently whenever the sibling's own table changes. Not yet done:
+nothing currently tracked - revisit this section as new work starts.
 
 ## References
 

@@ -2,14 +2,14 @@
 
 ![Menu screenshot](metadata/menu.png)
 
-A native SDL3 port bringing **53 games**, originally written for the
+A native SDL3 port bringing **60 games**, originally written for the
 [TinyJoypad](https://www.tinyjoypad.com/) ATtiny85 + SSD1306 128x64 OLED
 handheld, behind one shared game-select menu, running as a plain desktop
 executable - no emulator required.
 
 Two more ports also live in this same repo, alongside the primary SDL3
 port in `src/sdl3/`, all three sharing one `src/gameworld/` codebase (all
-53 games, the menu, the shims):
+60 games, the menu, the shims):
 - **SDL2** (`src/sdl2/`) - built by porting `src/sdl3/`'s own platform
   files API-call-by-API-call, then verified functionally identical (every
   behavioral constant, every input mapping table, both passing the same
