@@ -104,13 +104,41 @@ void menu_buildDisplayOrder()
     displayOrderBuilt = true;
 }
 
+// Real, live gap found and fixed in the sibling tinyjoypad_vircon32
+// project first, ported here directly since both projects share this exact
+// menu.c shape: menu_init() used to reset every prevX unconditionally to
+// false, regardless of whatever the D-pad's own real physical state
+// already was at that exact moment. menu_init() is called right after
+// confirming Quit in the quit-confirmation dialog (gamesMain.c's own
+// `currentGameIndex = -1; menu_init();`), and Fire itself was already safe
+// on this exact path - md_armInputFireGate() (armed immediately before
+// this, in the same confirmingQuit block) makes md_inputFire() itself
+// report "released" until the physical button genuinely is, so this
+// file's own `fire = md_inputFire()` read below already couldn't see a
+// leftover press - but no equivalent gate exists anywhere for
+// Up/Down/Left/Right. A player still holding, say, Right (moving their
+// character) at the exact moment they confirmed Quit would have had
+// prevRight forced to false while the real button stayed true -
+// manufacturing a false "just pressed" edge on the very next
+// menu_update() tick and instantly paging the just-reopened menu
+// sideways, with no new input from the player at all.
+//
+// Fixed by having menu_init() sample each button's own real current state
+// (md_inputUp()/Down()/Left()/Right()/Fire()) instead of assuming
+// released - the same "arm against whatever's already held" idea
+// md_armInputFireGate() already uses for Fire on this exact path, just
+// applied to the menu's own direction buttons too. menu_init()'s other
+// call site (app startup, before any game has ever run) is unaffected in
+// practice - a player could technically be holding a direction at the
+// exact moment the app finishes loading, but that's a far narrower window
+// than the every-single-quit case this was actually found for.
 void menu_init()
 {
-    prevUp = false;
-    prevDown = false;
-    prevFire = false;
-    prevLeft = false;
-    prevRight = false;
+    prevUp = md_inputUp();
+    prevDown = md_inputDown();
+    prevFire = md_inputFire();
+    prevLeft = md_inputLeft();
+    prevRight = md_inputRight();
 
     // Built once (addGames() has already run by the time menu_init() is
     // first called, and gameCount/games[] never change afterward) - not

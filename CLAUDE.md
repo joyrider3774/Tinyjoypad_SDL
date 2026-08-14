@@ -1688,6 +1688,57 @@ trusting the agent's own report), grepped for leftover Vircon32-dialect
 syntax, smoke-tested via `-g`, and the resulting screenshot checked by
 eye before cropping.
 
+## A real D-pad input-bleed bug in the menu's own quit-to-menu transition, ported from the sibling tinyjoypad_vircon32 project
+
+Found and fixed first in the sibling `tinyjoypad_vircon32` project (which
+this project's own `menu.c` was originally dialect-converted from), then
+applied here too since both projects share this exact `menu.c` shape:
+`menu_init()` used to reset every `prevX` unconditionally to `false`,
+regardless of whatever the D-pad's own real physical state already was at
+that exact moment. `menu_init()` is called right after confirming Quit in
+the quit-confirmation dialog (`gamesMain.c`'s own `currentGameIndex = -1;
+menu_init();`), and Fire itself was already safe on this exact path -
+`md_armInputFireGate()` (armed immediately before this, in the same
+`confirmingQuit` block) makes `md_inputFire()` itself report "released"
+until the physical button genuinely is, so `menu.c`'s own `fire =
+md_inputFire()` read already couldn't see a leftover press - but no
+equivalent gate exists anywhere for Up/Down/Left/Right. A player still
+holding, say, Right (moving their character) at the exact moment they
+confirmed Quit would have had `prevRight` forced to `false` while the
+real button stayed `true` - manufacturing a false "just pressed" edge on
+the very next `menu_update()` tick and instantly paging the just-reopened
+menu sideways, with no new input from the player at all (the bug this
+section's own title refers to: "menu not always staying on last played
+game when confirming quit game").
+
+**Fixed** by having `menu_init()` sample each button's own real current
+state (`md_inputUp()`/`Down()`/`Left()`/`Right()`/`Fire()`) instead of
+assuming released - the same "arm against whatever's already held" idea
+`md_armInputFireGate()` already uses for Fire on this exact path, just
+applied to the menu's own direction buttons too. `menu_init()`'s other
+call site (app startup, before any game has ever run) is unaffected in
+practice - a player could technically be holding a direction at the exact
+moment the app finishes loading, but that's a far narrower window than
+the every-single-quit case this was actually found for.
+
+Ported directly from the identical fix already made in the sibling
+project (same shared-origin `menu.c`, structurally identical code) -
+not independently re-discovered here. The Playdate port is unaffected:
+it has its own from-scratch menu (`src/playdate/main.c`'s own
+`menuUpdate()`/`returnToMenu()`, see "The Playdate port" above) that
+never calls `menu.c`'s own `menu_init()`/`menu_update()` at all (compiled
+in but genuinely dead code on that port, confirmed by real
+`-Wunused-function` warnings for both on a Playdate rebuild). Verified
+with a clean rebuild of all three ports (`src/sdl3/`, `src/sdl2/`,
+`src/playdate/`, all link successfully, no new warnings beyond the
+pre-existing Playdate ones just mentioned) and a smoke run of the SDL3
+build - not verified by an actual reproduce-then-fix play-test on this
+project specifically (the bug requires a precisely-timed Start-press
+while holding a direction key, awkward to script), but this is a direct,
+mechanical port of an already-proven fix applied to structurally
+identical code, matching this project's own established precedent for
+porting sibling fixes (Tiny Missile, Tiny Bike, etc. above).
+
 ## Status
 
 All 60 games ported, verified, and wired into the menu on all three ports
