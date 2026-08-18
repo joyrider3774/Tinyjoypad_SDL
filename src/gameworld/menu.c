@@ -20,7 +20,7 @@
 // guard below would have quietly dropped the last 2 games with no error
 // at all, not a crash - the kind of bug that's easy to miss until someone
 // notices a game they know they added just isn't in the menu).
-#define MAX_GAMES 64
+#define MAX_GAMES 128
 
 // How many entries fit in the vertical space between the list's start
 // (y=140) and the bottom of the 360px-tall screen at 24px/row.

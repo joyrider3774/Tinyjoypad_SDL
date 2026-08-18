@@ -155,4 +155,34 @@ void addGames()
     // has neither) - onResume wired defensively, matching every other
     // recent port's own standing reasoning.
     addGame( "TINY BLOCKS", "ROBOTMASTERC", &gameTinyBlocks_init, &gameTinyBlocks_update, &gameTinyBlocks_forceRedraw );
+    addGame( "CRACKY", "INUFUTO", &gameCracky_init, &gameCracky_update, NULL );
+    // The following 21 games are all inufuto's own "Cate engine" family
+    // (same CH32V003+SSD1306 UIAPduino hardware/driver lineage as Cracky
+    // above - see that game's own header comment for the shared shim/
+    // rendering architecture every one of these reuses) - license "None
+    // specified" for all of them (no LICENSE file in any of their upstream
+    // repos), credited "INUFUTO" (the shared GitHub handle) throughout.
+    // None of them has a forceRedraw hook - each game's own header comment
+    // documents why NULL is correct for its own state machine.
+    addGame( "AERIAL", "INUFUTO", &gameAerial_init, &gameAerial_update, NULL );
+    addGame( "ANTIAIR", "INUFUTO", &gameAntiair_init, &gameAntiair_update, NULL );
+    addGame( "ASCEND", "INUFUTO", &gameAscend_init, &gameAscend_update, NULL );
+    addGame( "AWASS", "INUFUTO", &gameAwass_init, &gameAwass_update, NULL );
+    addGame( "BATTLOT", "INUFUTO", &gameBattlot_init, &gameBattlot_update, NULL );
+    addGame( "BOOTSKELL", "INUFUTO", &gameBootskell_init, &gameBootskell_update, NULL );
+    addGame( "CACORM", "INUFUTO", &gameCacorm_init, &gameCacorm_update, NULL );
+    addGame( "CAVIT", "INUFUTO", &gameCavit_init, &gameCavit_update, NULL );
+    addGame( "GUNTUS", "INUFUTO", &gameGuntus_init, &gameGuntus_update, NULL );
+    addGame( "HOPMAN", "INUFUTO", &gameHopman_init, &gameHopman_update, NULL );
+    addGame( "IMPETUS", "INUFUTO", &gameImpetus_init, &gameImpetus_update, NULL );
+    addGame( "LIFT", "INUFUTO", &gameLift_init, &gameLift_update, NULL );
+    addGame( "MAZY", "INUFUTO", &gameMazy_init, &gameMazy_update, NULL );
+    addGame( "MAZY2", "INUFUTO", &gameMazy2_init, &gameMazy2_update, NULL );
+    addGame( "MIEYEN", "INUFUTO", &gameMieyen_init, &gameMieyen_update, NULL );
+    addGame( "NEURAS", "INUFUTO", &gameNeuras_init, &gameNeuras_update, NULL );
+    addGame( "OSOTOS", "INUFUTO", &gameOsotos_init, &gameOsotos_update, NULL );
+    addGame( "RUPTUS", "INUFUTO", &gameRuptus_init, &gameRuptus_update, NULL );
+    addGame( "SVELLAS", "INUFUTO", &gameSvellas_init, &gameSvellas_update, NULL );
+    addGame( "SWORD", "INUFUTO", &gameSword_init, &gameSword_update, NULL );
+    addGame( "YEWDOW", "INUFUTO", &gameYewdow_init, &gameYewdow_update, NULL );
 }

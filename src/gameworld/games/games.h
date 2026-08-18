@@ -233,4 +233,70 @@ void gameTinyBlocks_init();
 void gameTinyBlocks_update();
 void gameTinyBlocks_forceRedraw();
 
+void gameCracky_init();
+void gameCracky_update();
+
+void gameAerial_init();
+void gameAerial_update();
+
+void gameAntiair_init();
+void gameAntiair_update();
+
+void gameAscend_init();
+void gameAscend_update();
+
+void gameAwass_init();
+void gameAwass_update();
+
+void gameBattlot_init();
+void gameBattlot_update();
+
+void gameBootskell_init();
+void gameBootskell_update();
+
+void gameCacorm_init();
+void gameCacorm_update();
+
+void gameCavit_init();
+void gameCavit_update();
+
+void gameGuntus_init();
+void gameGuntus_update();
+
+void gameHopman_init();
+void gameHopman_update();
+
+void gameImpetus_init();
+void gameImpetus_update();
+
+void gameLift_init();
+void gameLift_update();
+
+void gameMazy_init();
+void gameMazy_update();
+
+void gameMazy2_init();
+void gameMazy2_update();
+
+void gameMieyen_init();
+void gameMieyen_update();
+
+void gameNeuras_init();
+void gameNeuras_update();
+
+void gameOsotos_init();
+void gameOsotos_update();
+
+void gameRuptus_init();
+void gameRuptus_update();
+
+void gameSvellas_init();
+void gameSvellas_update();
+
+void gameSword_init();
+void gameSword_update();
+
+void gameYewdow_init();
+void gameYewdow_update();
+
 #endif

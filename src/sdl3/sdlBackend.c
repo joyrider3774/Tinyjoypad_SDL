@@ -397,9 +397,9 @@ void md_endFrame()
 // alongside the exe for this anymore.
 #include "thumbnailData.h"
 
-// Matches gameworld/menu.c's own MAX_GAMES (bumped 48->64 alongside it,
+// Matches gameworld/menu.c's own MAX_GAMES (bumped 64->128 alongside it,
 // same reason - see that file's own comment).
-#define THUMBNAIL_MAX_COUNT 64
+#define THUMBNAIL_MAX_COUNT 128
 static SDL_Surface* gThumbnails[ THUMBNAIL_MAX_COUNT ];
 static int  gThumbnailCount = -1; // -1 = not yet probed
 

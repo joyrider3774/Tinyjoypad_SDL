@@ -1739,9 +1739,139 @@ mechanical port of an already-proven fix applied to structurally
 identical code, matching this project's own established precedent for
 porting sibling fixes (Tiny Missile, Tiny Bike, etc. above).
 
+## Twenty-two more games backported: Cracky and inufuto's whole "Cate engine" family (CH32V003/RISC-V, a new hardware class)
+
+The sibling `tinyjoypad_vircon32` project added 22 new games in its own
+history, all from inufuto's own "Cate engine" - a small self-contained
+C++ framework (`Uncopyable.h`/`Timer.cpp`/`ScanKeys.h`/`Oled.cpp`/
+`Vram.cpp`/`Sound.cpp`/`Print.cpp`, flattened to C the same way every
+other class-shaped source in this project has been) shared across dozens
+of small `github.com/inufuto/UIAPduino_*` repos. This is the first
+**CH32V003 RISC-V** hardware in this whole project - not AVR, not
+ESP8266/ESP8285 - though it makes no difference to the porting recipe
+itself: same SSD1306 128x64 display model, same Vircon32-dialect source
+shape, same standard-C dialect-conversion rules already established for
+every prior batch. All 22 credited "INUFUTO" (the shared GitHub handle
+across every one of these repos - no individual real name stated
+anywhere), license "None specified" for all (no LICENSE file in any
+upstream repo) - the same "known handle, unstated license" treatment
+already established for Datacute/Sunpazed/RobotMasterC. None of the 22
+needed EEPROM (none had any upstream) or `forceRedraw` (every one
+redraws its own full frame unconditionally every tick, confirmed
+per-game rather than assumed).
+
+Games: Cracky, Aerial, Antiair, Ascend, Awass, Battlot, Bootskell,
+Cacorm, Cavit, Guntus, Hopman, Impetus, Lift, Mazy, Mazy2, Mieyen,
+Neuras, Osotos, Ruptus, Svellas, Sword, Yewdow. See the sibling
+project's own `CLAUDE.md` ("Cracky, and a whole new source family" and
+its own follow-up sections) for the real porting history behind this
+family on that side - the display-orientation debugging saga (concluded
+"no transform needed at all", a real finding this project's own porting
+agents were briefed on verbatim to avoid re-deriving it), the
+`crkStatusChar` full-width redesign fixing a title-screen text-collision
+bug found via a real hardware photo, and the specific declaration-order/
+array-by-value/missing-`#define` bugs found and fixed in individual
+games during that project's own central-registration pass. This
+project's own port started from that already-fixed, final sibling
+source throughout - none of that discovery needed to happen again here.
+
+**Dispatched to 22 parallel background porting agents** (one per game,
+`Agent` tool, `run_in_background: true`), each given: the shared
+dialect-conversion recipe; an explicit instruction to read the sibling's
+own `gameCracky.c` first as the reference implementation (shared
+rendering/shim architecture, the no-orientation-transform finding
+repeated verbatim so no agent would "helpfully" re-add one); a note that
+some sibling games in this family build status/title text from
+individual char-literal constants rather than real string literals (no
+live string-corruption bug there, but this project's own established
+convention - confirmed by cross-checking already-shipped sibling ports
+mid-batch - is still to type those `char[]`, not `int[]`); and an
+explicit instruction not to touch `games.h`/`menuGameList.c` (reserved
+for one central registration pass, to avoid a 22-way merge race) and not
+to play-test, only compile-verify.
+
+**The dispatch itself needed real recovery, the same pattern the sibling
+project's own 21-agent batch already hit and documented**: several
+individual agents failed mid-run with transient server-side API errors
+(unrelated to this project's own code), sometimes after already writing
+a large, apparently-complete file. Handled case-by-case rather than
+blanket-retrying everything: `gameBootskell.c` and `gameRuptus.c` both
+crashed moments before their own agent could report its verification
+results, but each file was already fully written and syntactically
+complete (confirmed by checking for the closing `gameXxx_update()` brace
+and both required public functions) - independently re-verified
+directly (compile + the data-table diff script) rather than re-dispatched,
+both passing clean. `gameCacorm.c`, `gameHopman.c` (twice), and
+`gameAscend.c` (which had failed to even *launch* in the very first
+dispatch batch, distinct from a mid-run crash) had genuinely written
+nothing yet when their own failure arrived - straightforwardly
+re-dispatched fresh each time until each one completed and passed its
+own verification.
+
+**Independently re-verified every one of the 22 files afterward**,
+project-wide, rather than trusting any individual agent's own
+self-report at face value - the same discipline this project has relied
+on since the very first multi-agent porting wave: a project-wide
+standalone compile check (all 22 files, exit 0 across the board); a
+project-wide run of the data-table-diff script against each file's own
+sibling source (**0 mismatches, on all 22**, run directly rather than
+just re-reading each agent's own claimed script output); a grep sweep
+for leftover Vircon32-dialect array syntax and un-typedef'd `struct`
+tags (clean - the only two hits were inside comment prose describing an
+`int[27]` design choice in English, not real code); confirmation every
+file declares exactly the required `avrCompat.h`/`machineDependent.h`/
+`tinyJoypadShim.h` include set and exactly the two required public
+functions with no stray `forceRedraw`; and confirmation no real
+`eeprom_*()` call exists anywhere in the batch (only explanatory
+comments stating why EEPROM doesn't apply to this non-AVR hardware).
+
+**Capacity constants needed bumping before registration** - 60 existing
++ 22 new = 82 total, above every 64-slot cap in the codebase:
+`MAX_GAMES` in `gameworld/menu.c` (64->128, matching the sibling
+project's own identical bump for the identical reason), `THUMBNAIL_MAX_COUNT`
+in both `sdl3/sdlBackend.c` and `sdl2/sdlBackend.c` (64->128, kept in
+sync with `MAX_GAMES` per each file's own standing comment), and
+`MENU_MAX_GAMES` in `playdate/main.c` (64->128, its own from-scratch
+`gDisplayOrder[]` reimplementation of the same array, not a shared
+constant - kept in sync manually, matching that file's own existing
+"bumped 48->64 alongside gameworld/menu.c" comment precedent, updated to
+say 64->128 instead).
+
+**All 22 confirmed showing real gameplay in their own screenshots** -
+platformers, shooters, maze/matching games, block-push puzzles, a
+climbing game, a rock-mining cave scene, a sliding-panel puzzle, and
+more - each visually inspected (not just captured and assumed correct)
+via the standard `-ms -nd` batch-screenshot pass, no per-game
+`screenshotScriptFor()` tuning needed for any of the 22 (unlike several
+games in the immediately-prior 7-game batch) - every one of them reaches
+real, visible gameplay under this project's own default script. New
+thumbnails/screenshots/`.joy` files generated the same way as every
+prior batch (`-crop 640x320+0+20 +repage -resize 256x128` for the
+in-menu atlas BMPs, plain BMP->PNG for `metadata/screenshots/`, `-sample
+128x64` for the Playdate PNG set), registration indices 60 (Cracky)
+through 81 (Yewdow).
+
+**`README.md`'s own "Games" section re-synced verbatim** with the
+sibling project's own current table (89 lines, byte-identical,
+confirmed via direct comparison) - all 22 new rows merged in
+alphabetical order among the existing 60, `82 games`/MCU column intro
+text updated to mention the CH32V003/RISC-V hardware class alongside
+ESP8266/ESP8285, matching this project's own now-established "re-copy
+the sibling's Games section verbatim rather than hand-editing it"
+practice.
+
+Verified with a clean sequential rebuild of all three ports (`src/sdl3/`,
+`src/sdl2/`, `src/playdate/` all link successfully with no new errors,
+only the same class of pre-existing benign warnings - `avrCompat.h`'s
+own unused-helper warnings, a couple of `-Wstrict-prototypes` notes on
+bare `()` function declarations - every other game file in this project
+already produces) and a `-g`-based smoke test of every one of the 22 new
+games on both SDL3 and SDL2 (all ran their full test window with no
+crash).
+
 ## Status
 
-All 60 games ported, verified, and wired into the menu on all three ports
+All 82 games ported, verified, and wired into the menu on all three ports
 (`src/sdl3/`, `src/sdl2/`, `src/playdate/`); the menu shows real gameplay
 thumbnails on every port. CLI parameters, FPS display, and the batch-
 screenshot tool are in place on both SDL ports; all three presentation
