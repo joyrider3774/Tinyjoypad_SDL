@@ -1869,6 +1869,55 @@ already produces) and a `-g`-based smoke test of every one of the 22 new
 games on both SDL3 and SDL2 (all ran their full test window with no
 crash).
 
+## Osotos: a pushed block sliding off the left edge wrapped to the right side of the screen, ported from the sibling Vircon32 project
+
+Found and fixed first in the sibling `tinyjoypad_vircon32` project (direct
+user report there: "push the lower left block... it ends up at right
+part of screen"), then applied here too since both projects share this
+exact `gameOsotos.c` shape. `osoMoveBlocksOnce()`'s own per-tick boundary
+check only tested the *upper* bound (`nextColumn >= OSO_COLUMN_COUNT ||
+nextRow >= OSO_ROW_COUNT`), matching upstream's real `Block.cpp`
+literally - but upstream's own `nextColumn`/`nextRow` are `byte`
+(unsigned), so a block sliding left off column 0 there computes a
+genuine unsigned wraparound (`0 + -1 = 255`), which that same
+upper-bound-only check already catches correctly, settling the block
+right at the edge - the same unsigned-byte-boundary reliance already
+documented extensively elsewhere in this project (e.g. Lift's own
+`CanMoveTo()` fix). This port's `nextColumn`/`nextRow` are plain,
+non-wrapping signed `int`s, so a leftward-sliding block's column just
+stays `-1` and never satisfies the upper-bound-only check - the block
+keeps "moving" one column further left every tick, forever, with its own
+on-screen column going increasingly negative. Once that negative column
+feeds into the sprite/VVram positioning math elsewhere (which has no
+equivalent negative guard of its own, since upstream never needed one
+here), it wraps back into a large positive on-screen position - the
+reported "ends up on the right side of the screen".
+
+Unlike Lift's own fix (a single boundary already reachable from either
+direction), this game's own `osoPushBlock()` already guards the *first*
+push against a block already sitting at column 0/`ColumnCount-1`
+(destroying it instead) - this exact gap is reachable only once a block
+is already sliding continuously, on the tick it would cross the
+boundary.
+
+**Fixed** with an explicit lower-bound check alongside the existing
+upper bound (`nextColumn < 0 || nextColumn >= OSO_COLUMN_COUNT ||
+nextRow < 0 || nextRow >= OSO_ROW_COUNT`), reproducing upstream's real
+two-sided boundary behavior directly rather than relying on wraparound -
+matching the sibling project's own identical fix exactly.
+
+Ported directly from the identical fix already made in the sibling
+project (same shared-origin `gameOsotos.c`, structurally identical code)
+- not independently re-discovered here. Verified with a clean rebuild of
+all three ports (`src/sdl3/`, `src/sdl2/`, `src/playdate/`, all link
+successfully, no new warnings beyond the same pre-existing benign class
+every game file in this project already produces) - not verified by an
+actual reproduce-then-fix play-test on this project specifically (the
+bug requires pushing a specific block into a specific corner), but this
+is a direct, mechanical port of an already-proven fix applied to
+structurally identical code, matching this project's own established
+precedent for porting sibling fixes.
+
 ## Status
 
 All 82 games ported, verified, and wired into the menu on all three ports
