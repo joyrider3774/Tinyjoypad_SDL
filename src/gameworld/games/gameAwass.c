@@ -1245,13 +1245,43 @@ bool awaIsNear( AwaActor* p1, AwaActor* p2 )
         p1->y + AWA_HIT_RANGE >= p2->y && p2->y + AWA_HIT_RANGE >= p1->y;
 }
 
+// Real bug, same family as Lift's `lftCanMoveTo()`/Osotos's
+// `osoMoveBlocksOnce()` (see each one's own header comment) - found by
+// direct inspection while auditing this file for the same shape, not yet
+// reported live. Upstream's own `InRange()` (`Movable.cpp`) takes `column`/
+// `row` as real `byte` locals: `byte column = (pMovable->x >>
+// ColumnCoordShift) + dx;` - when a monster sits at column 0 and is offered
+// `dx=-1` (one of `DecideDirection()`'s own 4 candidate directions,
+// `Monster.cpp:96-121`, tried whenever the monster's normal `CanMove()`
+// check just failed and its "Throgh"/phase-through-walls state is active),
+// that addition wraps a real AVR byte to 255, and the very next line's own
+// `column >= ColumnCount` check correctly catches it and returns false -
+// exactly the "off the left/top edge" result upstream relies on the
+// wraparound to detect. This port's `column`/`row` are plain, non-wrapping
+// signed ints (per `avrCompat.h`'s own widening convention), so the same
+// dx=-1-at-column-0 case (and the equivalent dy=-1-at-row-0 case for the
+// row check below) instead leaves `column`/`row` genuinely negative -
+// `column >= AWA_COLUMN_COUNT` never fires, and a negative `row` is always
+// `< AWA_ROW_COUNT - 1` too, so both halves of this function would
+// silently report "in range" instead of "off the edge". In play this would
+// let a "Throgh" monster phase straight off the left/top edge of the map
+// the instant it's standing on the boundary column/row and every normal
+// direction is blocked - `DecideDirection()` would set `pMonster->dx`/`dy`
+// to walk it there, and its own coordinate would then keep going further
+// negative every tick, matching the same "silently wanders off the intended
+// edge, potentially reappearing elsewhere via unrelated downstream
+// coordinate math with no negative guard of its own" symptom class already
+// found and fixed in Lift/Osotos. Fixed with explicit `< 0` checks on both
+// axes, reproducing upstream's real two-sided boundary behavior directly
+// rather than relying on wraparound. Ported directly from the sibling
+// project's own identical fix.
 bool awaInRange( AwaActor* pActor, int dx, int dy )
 {
     int column, row;
     column = ( pActor->x >> AWA_COLUMN_COORD_SHIFT ) + dx;
-    if( column >= AWA_COLUMN_COUNT ) return false;
+    if( column < 0 || column >= AWA_COLUMN_COUNT ) return false;
     row = ( pActor->y >> AWA_ROW_COORD_SHIFT ) + dy;
-    return row < AWA_ROW_COUNT - 1;
+    return row >= 0 && row < AWA_ROW_COUNT - 1;
 }
 
 

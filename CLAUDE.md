@@ -1918,6 +1918,56 @@ is a direct, mechanical port of an already-proven fix applied to
 structurally identical code, matching this project's own established
 precedent for porting sibling fixes.
 
+## Awass: a "Throgh" monster could phase off the left/top map edge, ported from the sibling Vircon32 project
+
+Found and fixed first in the sibling `tinyjoypad_vircon32` project (by
+direct inspection while auditing that codebase for the same bug shape as
+the Lift/Osotos fixes above, not from a live report), then applied here
+too since both projects share this exact `gameAwass.c` shape. Upstream's
+own `InRange()` (`Movable.cpp`) takes `column`/`row` as real `byte`
+locals: `byte column = (pMovable->x >> ColumnCoordShift) + dx;` - when a
+monster sits at column 0 and is offered `dx=-1` (one of
+`DecideDirection()`'s own 4 candidate directions, tried whenever the
+monster's normal `CanMove()` check just failed and its "Throgh"/
+phase-through-walls state is active), that addition wraps a real AVR
+byte to 255, and the very next line's own `column >= ColumnCount` check
+correctly catches it and returns false - exactly the "off the left/top
+edge" result upstream relies on the wraparound to detect. This port's
+`column`/`row` are plain, non-wrapping signed ints (per `avrCompat.h`'s
+own widening convention), so the same dx=-1-at-column-0 case (and the
+equivalent dy=-1-at-row-0 case for the row check) instead left
+`column`/`row` genuinely negative - `column >= AWA_COLUMN_COUNT` never
+fired, and a negative `row` is always `< AWA_ROW_COUNT - 1` too, so both
+halves of the function would silently report "in range" instead of "off
+the edge". In play this would let a "Throgh" monster phase straight off
+the left/top edge of the map the instant it's standing on the boundary
+column/row and every normal direction is blocked -
+`DecideDirection()` would set `pMonster->dx`/`dy` to walk it there, and
+its own coordinate would then keep going further negative every tick -
+the same "silently wanders off the intended edge, potentially
+reappearing elsewhere via unrelated downstream coordinate math with no
+negative guard of its own" symptom class already found and fixed in
+Lift/Osotos above.
+
+**Fixed** with explicit `< 0` checks on both axes in `awaInRange()`
+(`column < 0 || column >= AWA_COLUMN_COUNT` / `row >= 0 && row <
+AWA_ROW_COUNT - 1`), reproducing upstream's real two-sided boundary
+behavior directly rather than relying on wraparound - matching the
+sibling project's own identical fix exactly.
+
+Ported directly from the identical fix already made in the sibling
+project (same shared-origin `gameAwass.c`, structurally identical code)
+- not independently re-discovered here. Verified with a clean rebuild of
+all three ports (`src/sdl3/`, `src/sdl2/`, `src/playdate/`, all link
+successfully, no new warnings beyond the same pre-existing benign class
+every game file in this project already produces) - not verified by an
+actual reproduce-then-fix play-test on this project specifically (the
+bug requires a "Throgh"-state monster to reach a boundary column/row
+with every normal direction blocked, an awkward state to script), but
+this is a direct, mechanical port of an already-proven fix applied to
+structurally identical code, matching this project's own established
+precedent for porting sibling fixes.
+
 ## Status
 
 All 82 games ported, verified, and wired into the menu on all three ports
