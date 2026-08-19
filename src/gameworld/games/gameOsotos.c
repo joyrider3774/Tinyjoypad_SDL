@@ -1545,7 +1545,38 @@ void osoMoveBlocksOnce()
             }
             nextColumn = column + osoMovingBlocks[ i ].dx;
             nextRow = row + osoMovingBlocks[ i ].dy;
-            if( nextColumn >= OSO_COLUMN_COUNT || nextRow >= OSO_ROW_COUNT )
+            // Real bug, found via a direct user report on the sibling
+            // Vircon32 project ("push the lower left block... it ends up
+            // at right part of screen"), confirmed against upstream's own
+            // MoveBlocks() (Block.cpp): `byte nextColumn = column +
+            // pMovingBlock->dx;` there is a `byte` (unsigned), so a block
+            // sliding left off column 0 computes nextColumn as a genuine
+            // unsigned wraparound (0 + -1 = 255), which the existing
+            // `nextColumn >= ColumnCount` check already catches, correctly
+            // settling the block right at the edge - the same unsigned-
+            // byte-boundary reliance already documented extensively
+            // elsewhere in this project (e.g. Lift's own CanMoveTo() fix).
+            // This port's `nextColumn` is a plain, non-wrapping signed int,
+            // so it just stays -1 and never satisfies that upper-bound-only
+            // check - the block keeps "moving" one column further left
+            // every tick, forever, with its own on-screen column going
+            // increasingly negative. Once that negative column feeds into
+            // the sprite/VVram positioning math elsewhere (which has no
+            // equivalent negative guard of its own, since upstream never
+            // needed one here), it wraps back into a large positive
+            // on-screen position - the reported "ends up on the right side
+            // of the screen". Unlike Lift's own fix (a single boundary
+            // already reachable from either direction), this game's own
+            // osoPushBlock() already guards the *first* push against a
+            // block already sitting at column 0/ColumnCount-1 (destroying
+            // it instead) - this exact gap is reachable only once a block
+            // is already sliding continuously, on the tick it would cross
+            // the boundary. Fixed with an explicit lower-bound check
+            // alongside the existing upper bound, reproducing upstream's
+            // real two-sided boundary behavior directly rather than
+            // relying on wraparound. Ported directly from the sibling
+            // project's own identical fix.
+            if( nextColumn < 0 || nextColumn >= OSO_COLUMN_COUNT || nextRow < 0 || nextRow >= OSO_ROW_COUNT )
               stop = true;
             else
             {
