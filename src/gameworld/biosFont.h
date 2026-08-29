@@ -341,4 +341,39 @@ static int biosTextWidth( char* text )
     return len * BIOS_FONT_CHAR_W;
 }
 
+// -----------------------------------------------------------------------------
+// Colored variants - ported from the sibling gamebuino_classic_sdl
+// project's own identical addition on top of this exact file (that
+// project's own biosFont.h comment: "everything above this point is copied
+// verbatim from [this project] ... these two route through
+// md_drawColumnPixelsColor() instead of md_drawColumnPixels() for that one
+// reason"). Used here for exactly one thing - the menu's own status-badge
+// row (md_drawToggleStatusIcons(), see machineDependent.h's own comment)
+// drawing an "off" toggle's label dim rather than full white, matching the
+// sibling project's own identical badge treatment. biosDrawChar()/
+// biosDrawText() above stay untouched (always white) so every other menu
+// string in this project keeps working exactly as it always has.
+// -----------------------------------------------------------------------------
+
+static void biosDrawCharColor( int ch, int x, int y, int color )
+{
+    int idx = ( ch < 0 || ch > 255 ) ? 0 : ch;
+    int col;
+
+    for( col = 0; col < BIOS_FONT_CHAR_W; col++ )
+      md_drawColumnPixelsColor( x + col, y, biosFont10x20[ idx ][ col ], BIOS_FONT_CHAR_H, color );
+}
+
+static void biosDrawTextColor( char* text, int x, int y, int color )
+{
+    int i = 0;
+
+    while( text[ i ] != 0 )
+    {
+        int ch = (unsigned char)text[ i ];
+        biosDrawCharColor( ch, x + i * BIOS_FONT_CHAR_W, y, color );
+        i++;
+    }
+}
+
 #endif

@@ -99,6 +99,44 @@ void md_setDialogShowing( bool showing );
 // drawn this frame.
 void md_setFpsOverlayShowing( bool showing, int width, int height );
 
+// Ported from the sibling gamebuino_classic_sdl project's own "menu sound,
+// effect, gray indicators + toasts" feature (its own gray-mode badge/toast
+// is Gamebuino-Classic-specific - real hardware dithering/LCD-persistence
+// simulation - and has no equivalent here, so only the sound + effect
+// indicators were ported). Shows a short-lived on-screen message (drawn by
+// drawStatusToast(), see each SDL port's own sdlBackend.c) reporting a
+// just-changed global toggle (mute, the glow/CRT/pixel-grid effect cycle) -
+// called once, right when that toggle actually flips, from wherever reads
+// the physical button (sdlBackend_pollEvents()). `text` is copied
+// internally (no ownership taken of the caller's own buffer).
+void md_showStatusToast( char* text );
+
+// Draws the current on/off state of every global toggle this project has
+// (sound, and the glow/CRT/pixel-grid effect cycle) as a small row of
+// badges - called once per real tick from menu.c's own menu_update(), so
+// the badges are visible (and, per md_showStatusToast() above, live-
+// updating) on the menu screen itself, not just during gameplay.
+void md_drawToggleStatusIcons();
+
+// True on exactly the one real tick drawStatusToast() (see each SDL port's
+// own sdlBackend.c) let the toast's own countdown reach zero and stopped
+// drawing it - false every other tick, including every tick the toast is
+// still showing. The toast is drawn straight onto the persistent screen
+// surface (the same one every game's own md_drawColumn() calls write to),
+// not re-composited fresh each frame the way the glow/CRT/pixel-grid
+// effects are - so once it stops being drawn, whatever game is currently
+// running needs to genuinely repaint that same screen region itself, or
+// the toast's own pixels stay burned in forever on any game whose own
+// update() skips redrawing on ticks where nothing else changed (an
+// isInvalid-style dirty-flag optimization, several games in this project
+// have one). gamesMain_dispatchFrame() polls this once per real tick and
+// forces one real redraw (via the current game's own onResume() hook, the
+// same mechanism the quit-confirmation dialog's own resume path already
+// uses) exactly when this reports true - matching the identical "burned-
+// in overlay pixels" fix already made for the Playdate port's own pixel-
+// grid toggle (see that port's own pixelGridMenuCallback() comment).
+bool md_statusToastJustExpired();
+
 // Requests the app quit at the top of the next real frame - the game-world
 // side's own equivalent of the platform side's window-close/F4 handling
 // (gamesMain_dispatchFrame()'s own Start-button handling calls this
@@ -142,6 +180,26 @@ void md_drawSolidRect( int x, int y, int w, int h, int color );
 // themselves never call this. count is a plain 20-30-ish for a text glyph
 // column - well under 32, so a single int always holds the whole run.
 void md_drawColumnPixels( int x, int y, int bits, int count );
+
+// A third, real-RGB "dim white" color, used only by the status-badge row's
+// own off-state labels (md_drawToggleStatusIcons(), see biosFont.h's own
+// biosDrawTextColor()/md_drawColumnPixelsColor() below) - ported from the
+// sibling gamebuino_classic_sdl project's own identical badge-dimming
+// scheme. Every actual GAME still only ever draws real MD_COLOR_BLACK/
+// WHITE (matching the real monochrome SSD1306 OLED every one of them was
+// authored for, per this project's own standing "monochrome throughout"
+// design) - this exists purely for this one piece of platform-level menu
+// UI, not something game code ever touches.
+#define MD_COLOR_DARKGRAY 2
+
+// Same as md_drawColumnPixels() above, but taking one of the three
+// MD_COLOR_* constants instead of always drawing white - see
+// MD_COLOR_DARKGRAY's own comment for why this exists at all (only
+// biosFont.h's own biosDrawTextColor()/biosDrawCharColor() call this;
+// biosDrawText()/biosDrawChar() themselves are untouched and still always
+// route through the plain md_drawColumnPixels() above, matching every
+// other menu string in this project).
+void md_drawColumnPixelsColor( int x, int y, int bits, int count, int color );
 
 // Pixel size of a game's menu thumbnail - shared here so callers (menu.c)
 // can lay out around it (e.g. centering it vertically) without duplicating

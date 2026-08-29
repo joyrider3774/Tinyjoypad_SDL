@@ -210,6 +210,29 @@ void gamesMain_dispatchFrame()
     // way it did the instant before the dialog opened.
     md_setInGame( currentGameIndex != -1 );
     md_setDialogShowing( confirmingQuit );
+
+    // The status toast (md_showStatusToast(), see machineDependent.h's own
+    // comment) is drawn straight onto the persistent screen surface, not
+    // re-composited fresh every frame the way the dialog box/FPS overlay
+    // above are - so once it stops being drawn, whatever game is currently
+    // running needs to genuinely repaint that same screen region itself,
+    // or its own pixels stay burned in forever on any game whose own
+    // update() skips redrawing on ticks where nothing else changed (an
+    // isInvalid-style dirty-flag optimization, several games in this
+    // project have one) - the exact same "frozen screen with stale pixels"
+    // failure this project's own quit-dialog-resume path above already
+    // forces a redraw to avoid, and the identical fix already made for the
+    // Playdate port's own pixel-grid toggle (see that port's own
+    // pixelGridMenuCallback() comment). Checked every real tick
+    // (md_statusToastJustExpired() itself only ever reports true on the
+    // one tick it actually happened), only actually acts while a game is
+    // running - the menu redraws itself unconditionally every tick
+    // regardless, so it never has anything to leave stale.
+    if( md_statusToastJustExpired() && currentGameIndex != -1 )
+    {
+        if( menu_getGame( currentGameIndex )->onResume != NULL )
+          menu_getGame( currentGameIndex )->onResume();
+    }
 }
 
 void gamesMain_init()

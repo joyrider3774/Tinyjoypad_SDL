@@ -1968,6 +1968,154 @@ this is a direct, mechanical port of an already-proven fix applied to
 structurally identical code, matching this project's own established
 precedent for porting sibling fixes.
 
+## Menu status badges + toggle toasts, ported from the sibling gamebuino_classic_sdl project
+
+Direct user request: port that project's own "menu sound, effect, gray
+indicators + toasts" feature (its own commit `87ddaff`) - a permanent row
+of badges in the menu's own top-right corner showing every global
+toggle's current state, and a short-lived toast drawn over whatever's
+already on screen the moment any of them flips. That project's own third
+toggle - a three-state real-hardware gray-dithering/LCD-persistence
+simulation, its own badge/toast included - is Gamebuino-Classic-specific
+and has no equivalent on this project's own plain monochrome SSD1306
+OLED, so only its other two toggles were ported: sound (already existed,
+`gMuted`/ButY) and the glow/CRT/pixel-grid effect cycle (already existed,
+`gOverlayMode`/`gGlowEnabled`/ButX).
+
+**A real color had to be added to make the badges look right.** The
+sibling project's own badges tell "on" from "off" by brightness (bright
+white vs a dim gray) - a color this project genuinely didn't have before
+this feature (`MD_COLOR_BLACK`/`WHITE` were the only two, matching the
+real monochrome SSD1306 OLED every game was authored for). A first
+attempt substituted a bordered box around "on" labels instead, reasoning
+that was a reasonable monochrome-only equivalent - **rejected directly by
+the user** ("why the fuck did you add rects around the status the status
+need to display white when enabled and gray color when disabled like in
+sibling project"), who wanted the real thing, not a substitute. Fixed for
+real: `machineDependent.h` grew `MD_COLOR_DARKGRAY` and a color-aware
+`md_drawColumnPixelsColor()` primitive (both SDL ports add a real
+`gDarkGrayPixel` - RGB 90,90,90, the sibling's own exact value - alongside
+the existing `gWhitePixel`/`gBlackPixel`), and `biosFont.h` grew
+`biosDrawCharColor()`/`biosDrawTextColor()` on top of that, appended at
+the very end of the file rather than modifying anything above (matching
+the sibling project's own identical append-only approach to its own copy
+of this exact file, whose own comment states it as "everything above this
+point is copied verbatim... these two route through
+md_drawColumnPixelsColor() instead of md_drawColumnPixels() for that one
+reason"). `biosDrawChar()`/`biosDrawText()` themselves are untouched -
+still always white, so every other menu string in this project keeps
+working exactly as it always has. Every actual GAME still only ever draws
+real `MD_COLOR_BLACK`/`WHITE` - the new color exists purely for this one
+piece of platform-level menu UI.
+
+**The effect-cycle toggle (ButX) used to be gated to `gInGame`** - toggling
+it from the menu, where the effects never render anyway, was an
+intentional no-op (see the CLAUDE.md's own "Presentation effects" section
+above for why that gate existed in the first place). Now that the menu
+itself shows the badge row live, that gate no longer makes sense - toggling
+from the menu is genuinely visible now, so it was dropped, matching the
+sibling project's own identical un-gating once it grew the same feature.
+The effects still only ever *render* during actual gameplay (unchanged);
+only the toggle input itself is no longer restricted. `showEffectToast()`
+builds its own message from whichever of the three are actually active
+("GRID+GLOW", "ALL OFF", etc, matching the sibling's own exact wording),
+and the mute toggle shows "SOUND ON"/"SOUND OFF".
+
+**A real staleness bug, caught by direct user follow-up** ("what did i
+tell you about redrawing the screen when the toasts hide"): the toast is
+drawn straight onto the persistent `gScreen` surface (same as the dialog
+box and FPS overlay), not re-derived fresh every frame - so once its own
+60-frame countdown reaches zero and it stops being drawn, whatever game is
+currently running needs to genuinely repaint that exact screen region
+itself, or the toast's own pixels stay burned in forever on any game whose
+own `update()` skips redrawing on ticks where nothing else changed (an
+`isInvalid`-style dirty-flag optimization, several games in this project
+have one) - the identical "frozen screen with stale pixels" failure class
+already found and fixed for the Playdate port's own pixel-grid toggle (see
+that port's own `pixelGridMenuCallback()` comment) and the quit-dialog's
+own resume path. Fixed with a new `md_statusToastJustExpired()` query
+(true on exactly the one real tick the countdown reached zero, both SDL
+ports), polled once per tick from `gamesMain_dispatchFrame()` - if true and
+a game is actually running, that game's own `onResume()` hook (if it has
+one) is called once, forcing a real redraw over the stale region. The menu
+itself needs no equivalent handling - it already redraws unconditionally
+every tick regardless.
+
+**A second, genuine improvement over the sibling's own reference
+implementation, found while answering a direct user question** ("why
+arent the toast message drawn on top of the screen? does the sibling
+project also not do that?"): confirmed by directly reading the sibling's
+own `md_endFrame()` that its own toast, once baked into `gScreen`, gets
+whatever glow/CRT/pixel-grid effect is currently active washed over it
+too, unlike its own dialog box and FPS overlay, both of which get a crisp
+re-composite on top of those same effects. This project's own toast now
+gets that same crisp treatment: `drawStatusToast()` records the exact rect
+it drew into (`gToastRectX`/`Y`/`W`/`H` - width varies with the current
+message's own length, the same reason the FPS overlay tracks its own
+width in variables rather than a fixed `#define`) and a `gToastDrawnThisFrame`
+flag (needed because `gStatusToastFrames` itself is already decremented,
+possibly to exactly zero on the toast's own last visible frame, by the
+time the caller can check it) - `md_endFrame()` re-composites that rect
+from `gScreenTexture`, after the glow/CRT/pixel-grid effects render, the
+same "restore this one sub-rect's pre-effect pixels" technique already
+used for `MD_DIALOG_X`/`Y`/`W`/`H` and the FPS overlay. A system toast
+message stays legible regardless of which display effect is active now,
+on both SDL ports - not a port of anything, since the sibling doesn't do
+this for its own toast either.
+
+Verified with a clean rebuild of both SDL ports (`src/sdl3/`, `src/sdl2/`,
+both link successfully, no new warnings) and a direct visual check (a
+temporary debug `md_showStatusToast()` call at startup, removed again
+afterward): the badge row shows the correct on/off state for every
+toggle, in the correct dim-vs-bright colors, and the toast box renders
+correctly on top of the menu's own game list. Not independently verified
+by ear/eye during actual gameplay with an effect active (the specific
+scenario the crisp-recomposite fix targets) - the Playdate port was not
+touched, since the user's own request was scoped to "the gamebuino_classic_sdl
+code" specifically (an SDL-only sibling) and Playdate's own menu is a
+from-scratch implementation that never calls `menu.c`'s own
+`menu_update()` at all (see "The Playdate port" above).
+
+## Effect cycle widened from 5 curated states to all 8 combinations, matching the sibling gamebuino_classic_sdl project
+
+Direct user question: does this project's own glow/CRT/pixel-grid effect
+cycle reach the same combinations as the sibling `gamebuino_classic_sdl`
+project's own identical feature, when both were stepped through their
+own single button? Checked directly by reading that project's own
+`ButLB` handler - it didn't match. This project's own cycle (`gOverlayMode`,
+ported from `crisp-game-lib-portable-sdl`'s own `cglpSDL3.c`) was a
+curated 5-state subset - none, pixel-grid+glow, pixel-grid alone, CRT
+alone, glow alone - built on the assumption that pixel-grid and CRT are
+mutually exclusive "what kind of display is this" choices. The sibling
+project's own cycle is a real 3-bit counter enumerating all 8 possible
+combinations of the same three effects, "per direct request" (its own
+comment's wording) from when glow/CRT were first ported into that project
+from this one - deliberately choosing NOT to keep this project's own
+curated subset, making every combination reachable instead (including
+pixel-grid+CRT together, glow+CRT together, and all three at once, none
+of which this project's own 5-state cycle could ever reach).
+
+Since the sibling has strictly more reachable states (its own 8 is a
+superset of this project's own 5), fixed by adopting its exact approach
+here: `gOverlayMode` (a single int encoding "which one of pixel-grid/CRT,
+if either") was replaced with two independent booleans
+(`gPixelGridEnabled`/`gCrtEnabled`, alongside the already-independent
+`gGlowEnabled`) and a real `gEffectState` 3-bit counter -
+`gEffectState = (gEffectState + 1) % 8`, then each bit unpacked into one
+of the three booleans, byte-for-byte matching the sibling's own handler.
+`md_endFrame()`'s own effect-rendering block changed from `if(grid) ...
+else if(crt) ...` to two independent `if`s, since pixel-grid and CRT can
+genuinely both be active and drawn in the same frame now. Every other
+reader of the old `gOverlayMode == 1`/`== 2` checks (the status badges,
+the toast-message builder) was updated to read the new booleans directly.
+
+Verified with a clean rebuild of both SDL ports (`src/sdl3/`, `src/sdl2/`,
+both link successfully, no new warnings) and a smoke run of the SDL3
+build. The Playdate port is unaffected - it has no equivalent effect
+cycle at all (see "The Playdate port" above: glow/CRT were deliberately
+out of scope there from the start, only pixel-grid was ever added, toggled
+through the system menu rather than a button cycle).
+
 ## Status
 
 All 82 games ported, verified, and wired into the menu on all three ports

@@ -206,6 +206,12 @@ int menu_update()
     biosDrawText( "TINYJOYPAD FOR SDL", menuCenteredX( "TINYJOYPAD FOR SDL" ), 40 );
     biosDrawText( "UP/DOWN: SELECT     A: PLAY", menuCenteredX( "UP/DOWN: SELECT     A: PLAY" ), 80 );
 
+    // Current state of the global toggles (sound, glow/CRT/pixel-grid),
+    // parked in the corner where nothing else is drawn - ported from the
+    // sibling gamebuino_classic_sdl project's own identical menu badge row
+    // (see machineDependent.h's own md_drawToggleStatusIcons() comment).
+    md_drawToggleStatusIcons();
+
     int currentPage = selection / GAMES_PER_PAGE;
 
     if( totalPages > 1 )

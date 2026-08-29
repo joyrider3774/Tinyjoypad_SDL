@@ -39,6 +39,7 @@
 #include <string.h>
 
 #include "machineDependent.h"
+#include "biosFont.h"
 #include "sdlBackend.h"
 #include "CInput.h"
 #include "tinyjoypadSDL3.h"
@@ -119,6 +120,7 @@ static SDL_Surface* gScreen        = NULL; // SCREEN_LOGICAL_W x H, RGBA32 - per
 static SDL_Texture*  gScreenTexture = NULL; // streamed from gScreen every frame
 static Uint32         gWhitePixel    = 0;
 static Uint32         gBlackPixel    = 0;
+static Uint32         gDarkGrayPixel = 0;
 
 // Post-process presentation effects (glowEffect.h/crtEffect.h/
 // pixelGridEffect.h) - all three draw directly to the renderer's own
@@ -130,20 +132,30 @@ static Uint32         gBlackPixel    = 0;
 // persistent game-content buffer - see its own comment above) is only
 // ever READ by these effects, never written to.
 //
-// The overlay/glow combination and its single-button cycle are ported
-// directly from crisp-game-lib-portable-sdl's own cglpSDL3.c (the ButX/
-// BUTTON_GLOWSWITCH handler around its own line 1222) - one press steps
-// through: nothing -> pixel-grid+glow -> pixel-grid alone -> CRT alone ->
-// glow alone -> (back to nothing). Pixel-grid and CRT are mutually
-// exclusive (cglp's own design - both are "what kind of display is this"
-// choices, glow is a separate "how bright are the pixels" one that can
-// combine with pixel-grid but, in cglp's own cycle, never with CRT).
-// gOverlayMode: 0 = none, 1 = pixel-grid, 2 = CRT.
+// The overlay/glow combination originally shipped as a single-button
+// cycle ported directly from crisp-game-lib-portable-sdl's own
+// cglpSDL3.c - a curated 5-state subset (nothing -> pixel-grid+glow ->
+// pixel-grid alone -> CRT alone -> glow alone -> back to nothing) that
+// treated pixel-grid and CRT as mutually exclusive by design (both being
+// "what kind of display is this" choices). Replaced with a real 3-bit
+// counter enumerating all 8 combinations of the three effects instead,
+// matching the sibling gamebuino_classic_sdl project's own identical
+// change there (that project ported glow/CRT in from here, but "per
+// direct request" - its own comment's wording - deliberately made every
+// combination reachable rather than keeping this cycle's own curated
+// subset). Found to differ via a direct user question asking whether the
+// two projects' own effect cycles matched - they didn't (this project's
+// own 5 states are a strict subset of the sibling's 8, missing pixel-
+// grid+CRT together, glow+CRT together, and all three together) - fixed
+// by adopting the sibling's own fuller version here, since it has
+// strictly more reachable states.
 static GlowEffect*      gGlowEffect      = NULL;
 static bool             gGlowEnabled     = false;
 static CrtEffect*       gCrtEffect       = NULL;
+static bool             gCrtEnabled      = false;
 static PixelGridEffect* gPixelGridEffect = NULL;
-static int              gOverlayMode     = 0;
+static bool             gPixelGridEnabled = false;
+static int              gEffectState     = 0;
 static Uint64            gLastFrameTicks  = 0;
 
 // All three effects are only ever relevant to actual gameplay, not the
@@ -184,6 +196,182 @@ void md_setFpsOverlayShowing( bool showing, int width, int height )
     gFpsOverlayH = height;
 }
 
+// Tentative declaration: the real definition sits further down with the
+// rest of the audio state, but the status badges below need to read it.
+static bool gMuted;
+
+// -----------------------------------------------------------------------------
+//   Toggle status badges + the transient "you just changed this" toast
+// -----------------------------------------------------------------------------
+//
+// Ported from the sibling gamebuino_classic_sdl project's own "menu sound,
+// effect, gray indicators + toasts" feature - two things: a permanent row
+// of badges showing every global toggle's own current state (drawn in the
+// menu's own top-right corner, see md_drawToggleStatusIcons() below,
+// called from menu.c), and a short-lived toast drawn over whatever is
+// already on screen the moment any of them flips, so a mid-game press is
+// acknowledged rather than leaving the player guessing. The sibling
+// project's own third toggle (a three-state real-hardware gray-dithering/
+// LCD-persistence simulation, exposed as its own badge + toast) is
+// Gamebuino-Classic-specific and has no equivalent on this project's own
+// plain monochrome SSD1306 OLED, so only its two other toggles - sound and
+// the glow/CRT/pixel-grid effect cycle - were ported.
+//
+// Same dim-vs-bright brightness scheme the sibling project's own badges
+// use ("on" white, "off" a dim gray) - this project didn't have a real
+// gray color at all before this feature, so machineDependent.h grew one
+// (MD_COLOR_DARKGRAY) plus a color-aware column-pixel primitive purely for
+// this, and biosFont.h grew biosDrawTextColor()/biosDrawCharColor() on top
+// of that - see each one's own comment. Every actual game still only ever
+// draws real MD_COLOR_BLACK/WHITE, matching the real monochrome SSD1306
+// OLED every one of them was authored for.
+
+#define MD_STATUS_TOAST_FRAMES 60
+
+static char gStatusToastText[ 64 ];
+static int  gStatusToastFrames = 0;
+static bool gStatusToastExpiredFlag = false;
+
+void md_showStatusToast( char* text )
+{
+    int i = 0;
+
+    while( text[ i ] != 0 && i < (int)sizeof( gStatusToastText ) - 1 )
+    {
+        gStatusToastText[ i ] = text[ i ];
+        i++;
+    }
+
+    gStatusToastText[ i ] = 0;
+    gStatusToastFrames = MD_STATUS_TOAST_FRAMES;
+}
+
+bool md_statusToastJustExpired()
+{
+    bool result = gStatusToastExpiredFlag;
+    gStatusToastExpiredFlag = false;
+    return result;
+}
+
+// Builds the effect cycle's own message from whichever of the three are
+// actually active, so what it says always matches what is on screen -
+// "GRID+GLOW", "ALL OFF" and so on, mirroring the sibling project's own
+// identical wording/format exactly.
+static void showEffectToast()
+{
+    if( !gPixelGridEnabled && !gGlowEnabled && !gCrtEnabled )
+    {
+        md_showStatusToast( "EFFECTS: NONE" );
+        return;
+    }
+
+    char text[ 64 ];
+    SDL_strlcpy( text, "EFFECTS: ", sizeof( text ) );
+
+    if( gPixelGridEnabled )
+      SDL_strlcat( text, "GRID", sizeof( text ) );
+
+    if( gGlowEnabled )
+    {
+        if( SDL_strlen( text ) > 9 ) SDL_strlcat( text, "+", sizeof( text ) );
+        SDL_strlcat( text, "GLOW", sizeof( text ) );
+    }
+
+    if( gCrtEnabled )
+    {
+        if( SDL_strlen( text ) > 9 ) SDL_strlcat( text, "+", sizeof( text ) );
+        SDL_strlcat( text, "CRT", sizeof( text ) );
+    }
+
+    md_showStatusToast( text );
+}
+
+// One badge: bright white when the toggle is on, dim (MD_COLOR_DARKGRAY)
+// when it is off, so the row reads as lit/unlit at a glance rather than
+// having to be read - matching the sibling gamebuino_classic_sdl
+// project's own identical badge treatment exactly (see biosFont.h's own
+// biosDrawTextColor() comment for how the dim color itself works).
+static void drawStatusBadge( char* label, int x, int y, bool enabled )
+{
+    if( enabled )
+      biosDrawText( label, x, y );
+    else
+      biosDrawTextColor( label, x, y, MD_COLOR_DARKGRAY );
+}
+
+void md_drawToggleStatusIcons()
+{
+    int y = 10;
+    int gap = BIOS_FONT_CHAR_W;
+
+    // Laid out right-to-left from the screen edge so the row stays anchored
+    // to the corner whatever the labels are - same layout as the sibling
+    // project's own row, just without its GRAY badge.
+    int crtX  = MD_SCREEN_WIDTH - 12 - biosTextWidth( "CRT" );
+    int glowX = crtX - gap - biosTextWidth( "GLOW" );
+    int gridX = glowX - gap - biosTextWidth( "GRID" );
+    int sndX  = gridX - gap - biosTextWidth( "SND" );
+
+    drawStatusBadge( "SND", sndX, y, !gMuted );
+    drawStatusBadge( "GRID", gridX, y, gPixelGridEnabled );
+    drawStatusBadge( "GLOW", glowX, y, gGlowEnabled );
+    drawStatusBadge( "CRT", crtX, y, gCrtEnabled );
+}
+
+// Drawn straight onto the persistent gScreen surface, same as the dialog
+// box (MD_DIALOG_X/Y/W/H) and FPS overlay are - see machineDependent.h's
+// own comment on why the toast being baked in like that (rather than a
+// true renderer-only overlay) is a genuine tradeoff, not an oversight.
+// gToastRectX/Y/W/H record exactly where THIS frame's box landed (its
+// width depends on the current message's own length, the same reason the
+// FPS overlay tracks gFpsOverlayW/H instead of a fixed #define) so
+// md_endFrame() below can re-composite that same rect crisply on top of
+// the glow/CRT/pixel-grid effects, the same way it already does for the
+// dialog box and FPS overlay - a system toast should stay legible
+// regardless of which display effect is currently active, not get
+// scanlined/blurred/grid-lined along with actual gameplay. gToastDrawnThisFrame
+// is what tells md_endFrame() whether that re-composite is even needed
+// this frame - checking gStatusToastFrames alone wouldn't work, since it's
+// already been decremented (possibly to exactly 0, on the toast's own
+// last real visible frame) by the time this function returns.
+static int  gToastRectX, gToastRectY, gToastRectW, gToastRectH;
+static bool gToastDrawnThisFrame = false;
+
+// Sets gStatusToastExpiredFlag on the exact tick the countdown reaches
+// zero (never drawing again after) - see md_statusToastJustExpired()'s own
+// header comment above for why gamesMain_dispatchFrame() needs to know
+// that, specifically, rather than just "is it showing right now".
+static void drawStatusToast()
+{
+    gToastDrawnThisFrame = false;
+
+    if( gStatusToastFrames <= 0 )
+      return;
+
+    gStatusToastFrames--;
+    if( gStatusToastFrames == 0 )
+      gStatusToastExpiredFlag = true;
+
+    int textW = biosTextWidth( gStatusToastText );
+    int boxW = textW + 28;
+    int boxH = BIOS_FONT_CHAR_H + 20;
+    int boxX = ( MD_SCREEN_WIDTH - boxW ) / 2;
+    int boxY = MD_SCREEN_HEIGHT - boxH - 14;
+    int border = 4;
+
+    md_drawSolidRect( boxX, boxY, boxW, boxH, MD_COLOR_WHITE );
+    md_drawSolidRect( boxX + border, boxY + border,
+                      boxW - border * 2, boxH - border * 2, MD_COLOR_BLACK );
+
+    biosDrawText( gStatusToastText, boxX + 14, boxY + 10 );
+
+    gToastRectX = boxX;
+    gToastRectY = boxY;
+    gToastRectW = boxW;
+    gToastRectH = boxH;
+    gToastDrawnThisFrame = true;
+}
+
 // Reuses the same gQuit flag sdlBackend_pollEvents() sets on a real
 // window-close/ButQuit event (see this file's own "Shared platform state"
 // section) - sdlBackend_shouldQuit() (main.c's own loop condition) can't
@@ -217,6 +405,7 @@ void md_initVideo()
     {
         gWhitePixel = SDL_MapSurfaceRGBA( gScreen, 255, 255, 255, 255 );
         gBlackPixel = SDL_MapSurfaceRGBA( gScreen, 0, 0, 0, 255 );
+        gDarkGrayPixel = SDL_MapSurfaceRGBA( gScreen, 90, 90, 90, 255 );
     }
 
     gGlowEffect = GlowEffect_Create( gRenderer, SCREEN_LOGICAL_W, SCREEN_LOGICAL_H, GLOW_DOWNSCALE_FACTOR );
@@ -284,7 +473,7 @@ void md_drawSolidRect( int x, int y, int w, int h, int color )
     SDL_FillSurfaceRect( gScreen, &rect, pixel );
 }
 
-void md_drawColumnPixels( int x, int y, int bits, int count )
+static void drawColumnPixelRuns( int x, int y, int bits, int count, Uint32 pixel )
 {
     if( !gScreen )
       return;
@@ -304,14 +493,38 @@ void md_drawColumnPixels( int x, int y, int bits, int count )
         int runLen = i - runStart;
 
         SDL_Rect r = { x, y + runStart, 1, runLen };
-        SDL_FillSurfaceRect( gScreen, &r, gWhitePixel );
+        SDL_FillSurfaceRect( gScreen, &r, pixel );
     }
+}
+
+void md_drawColumnPixels( int x, int y, int bits, int count )
+{
+    drawColumnPixelRuns( x, y, bits, count, gWhitePixel );
+}
+
+// Only ever reached via biosFont.h's own biosDrawTextColor()/
+// biosDrawCharColor() (see machineDependent.h's own MD_COLOR_DARKGRAY
+// comment) - real game code only ever calls the plain md_drawColumnPixels()
+// above, always white.
+void md_drawColumnPixelsColor( int x, int y, int bits, int count, int color )
+{
+    Uint32 pixel = gWhitePixel;
+    if( color == MD_COLOR_BLACK )         pixel = gBlackPixel;
+    else if( color == MD_COLOR_DARKGRAY ) pixel = gDarkGrayPixel;
+    drawColumnPixelRuns( x, y, bits, count, pixel );
 }
 
 void md_endFrame()
 {
     if( !gScreen )
       return;
+
+    // Last of all onto gScreen itself (not the renderer backbuffer, see
+    // drawStatusToast()'s own comment), so it lands on top of the game's
+    // own finished frame, the menu and the quit dialog alike - has to run
+    // before the texture upload just below picks up gScreen's own current
+    // pixels for this exact frame.
+    drawStatusToast();
 
     // gScreen is persistent (see this section's own header comment) - even
     // on a frame where nothing actually redrew it (md_beginFrame() wasn't
@@ -339,9 +552,15 @@ void md_endFrame()
             if( gGlowEnabled )
               GlowEffect_Render( gRenderer, gScreen, gGlowEffect, 255, 255, 255, GLOW_INTENSITY );
 
-            if( gOverlayMode == 1 )
+            // Independent `if`s, not `else if` - pixel-grid and CRT are no
+            // longer mutually exclusive (see gEffectState's own comment
+            // above), so both can genuinely be active and drawn in the
+            // same frame now, matching the sibling gamebuino_classic_sdl
+            // project's own identical independent-if shape.
+            if( gPixelGridEnabled )
               PixelGridEffect_Render( gRenderer, gPixelGridEffect );
-            else if( gOverlayMode == 2 )
+
+            if( gCrtEnabled )
             {
                 CrtEffect_Update( gCrtEffect, deltaTime );
                 CrtEffect_Render( gRenderer, gCrtEffect );
@@ -372,6 +591,24 @@ void md_endFrame()
         {
             SDL_FRect fpsRect = { 0.0f, 0.0f, (float)gFpsOverlayW, (float)gFpsOverlayH };
             SDL_RenderTexture( gRenderer, gScreenTexture, &fpsRect, &fpsRect );
+        }
+
+        // Same idea again, for the status toast's own rect (see
+        // drawStatusToast()'s own comment on gToastRectX/Y/W/H) - a system
+        // toast should stay crisp/legible on top of whichever display
+        // effect is currently active, the same reasoning the dialog box
+        // and FPS overlay above already get, not something the sibling
+        // gamebuino_classic_sdl project's own identical toast feature
+        // actually does (confirmed by reading its own md_endFrame() - it
+        // bakes the toast into gScreen the same way this one does, but
+        // never re-composites it crisply afterward, so an active glow/CRT/
+        // pixel-grid effect there really does wash over its own toast too)
+        // - a genuine improvement over the reference implementation, not
+        // a port of anything.
+        if( gToastDrawnThisFrame )
+        {
+            SDL_FRect toastRect = { (float)gToastRectX, (float)gToastRectY, (float)gToastRectW, (float)gToastRectH };
+            SDL_RenderTexture( gRenderer, gScreenTexture, &toastRect, &toastRect );
         }
     }
 
@@ -1059,42 +1296,31 @@ void sdlBackend_pollEvents()
     // BUTTON_GLOWSWITCH (tinyjoypadSDL3.h) maps to ButX (CInput.c) - a
     // plain edge check against Input->PrevButtons, matching CInput's own
     // existing "current vs previous frame" tracking rather than adding a
-    // second held-frame counter just for this one toggle. Only live during
-    // actual gameplay (matching cglp's own `!isInMenu` gate on this same
-    // handler) - toggling while on the menu, where none of these effects
-    // ever render anyway (see md_endFrame()'s own gInGame check), would be
-    // an invisible no-op that's more confusing than just ignoring it.
+    // second held-frame counter just for this one toggle. Used to be gated
+    // to gInGame - toggling while on the menu, where none of these effects
+    // ever render anyway (see md_endFrame()'s own gInGame check), used to
+    // be an invisible no-op. Now that the menu itself shows a live status
+    // badge row (md_drawToggleStatusIcons(), see menu.c) and a toast on
+    // every change (md_showStatusToast() below), toggling from the menu is
+    // no longer invisible - matches the sibling gamebuino_classic_sdl
+    // project's own identical un-gating once it grew the same badges/toast
+    // feature - so the gInGame gate was dropped. The effects still only
+    // ever *render* during actual gameplay (unchanged, see md_endFrame()'s
+    // own gInGame check), only the toggle input itself is no longer
+    // restricted.
     //
-    // Cycle ported directly from cglpSDL3.c's own ButX handler (see
-    // gOverlayMode's own declaration comment for the exact 5-state
-    // sequence and why pixel-grid/CRT are mutually exclusive there).
-    if( gInGame && gInput->Buttons.ButX && !gInput->PrevButtons.ButX )
+    // A real 3-bit counter enumerating all 8 combinations of the three
+    // effects - see gEffectState's own declaration comment above for why
+    // (matches the sibling gamebuino_classic_sdl project's own identical
+    // handler exactly, one press always advances to the next of the 8,
+    // wrapping back to "all off" after the 8th).
+    if( gInput->Buttons.ButX && !gInput->PrevButtons.ButX )
     {
-        if( gOverlayMode == 0 )
-        {
-            if( gGlowEnabled )
-              gGlowEnabled = false;
-            else
-            {
-                gOverlayMode = 1;
-                gGlowEnabled = true;
-            }
-        }
-        else if( gOverlayMode == 1 )
-        {
-            if( gGlowEnabled )
-              gGlowEnabled = false;
-            else
-            {
-                gOverlayMode = 2;
-                gGlowEnabled = false;
-            }
-        }
-        else // gOverlayMode == 2
-        {
-            gOverlayMode = 0;
-            gGlowEnabled = true;
-        }
+        gEffectState = ( gEffectState + 1 ) % 8;
+        gPixelGridEnabled = ( gEffectState & 1 ) != 0;
+        gGlowEnabled      = ( gEffectState & 2 ) != 0;
+        gCrtEnabled       = ( gEffectState & 4 ) != 0;
+        showEffectToast();
     }
 
     // BUTTON_VOLDOWN/BUTTON_VOLUP (PageDown/PageUp) map onto ButLB/ButRB
@@ -1131,6 +1357,7 @@ void sdlBackend_pollEvents()
     {
         gMuted = !gMuted;
         sdlLog( "Sound: %s\n", gMuted ? "muted" : "unmuted" );
+        md_showStatusToast( gMuted ? "SOUND OFF" : "SOUND ON" );
     }
 
     // BUTTON_FULLSCREEN (F3) drives ButFullscreen (CInput.c) - a live
