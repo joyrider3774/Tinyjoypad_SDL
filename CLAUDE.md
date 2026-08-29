@@ -2116,6 +2116,97 @@ cycle at all (see "The Playdate port" above: glow/CRT were deliberately
 out of scope there from the start, only pixel-grid was ever added, toggled
 through the system menu rather than a button cycle).
 
+## Playdate: the status badge/toast feature's own machineDependent.h contract, and a real Playdate-native implementation of both
+
+**The Playdate build was silently broken by the badges/toast feature
+above** - discovered only once actually attempted, not caught at the time
+the SDL-side work landed, since only `src/sdl3/`/`src/sdl2/` were rebuilt
+that session. `src/gameworld/gamesMain.c` and `menu.c` are both compiled
+into the Playdate binary too (globbed in like every other `gameworld/*.c`
+file, even though both files are genuinely dead code there - Playdate has
+its own from-scratch dispatch/menu, see "The Playdate port" above), and
+both now call the three new `machineDependent.h` functions
+(`md_showStatusToast()`/`md_drawToggleStatusIcons()`/
+`md_statusToastJustExpired()`) plus a fourth (`md_drawColumnPixelsColor()`,
+called from `biosFont.h`'s own new `biosDrawCharColor()`, itself compiled
+into every gameworld TU that includes `biosFont.h` - including
+`gamesMain.c`, for its own quit-dialog text) - none of which had a
+Playdate-side definition, so the link failed with four unresolved
+externals the moment a Playdate build was actually attempted.
+
+**`md_drawColumnPixelsColor()`** got the same treatment as the two other
+already-established Playdate no-ops right above it
+(`md_drawSolidRect()`/`md_drawColumnPixels()`, both from before this
+session): a real, callable, parameter-ignoring stub - its only real
+caller is `biosDrawCharColor()`, itself only ever reachable from the dead
+BIOS-font menu path this port never runs, so the stub exists purely to
+satisfy the link.
+
+**`md_showStatusToast()`/`md_drawToggleStatusIcons()` got a genuine
+Playdate-native implementation instead, ported directly from the sibling
+gamebuino_classic_sdl project's own identical Playdate port** (per direct
+user request to match it, "as well drawing the G from grid"):
+`md_drawToggleStatusIcons()` itself stays a real no-op (never called -
+this port's own from-scratch `menuUpdate()` doesn't go through
+`gameworld/menu.c` at all), but a private `menuDrawStatusIcon()` draws
+the real thing directly from `menuUpdate()`'s own draw section instead.
+Unlike the SDL ports' own four-word badge row (SND/GRID/GLOW/CRT), this
+port only ever has ONE of those wired to anything at all - the pixel grid,
+flipped from Playdate's own system-menu checkmark (see
+`pixelGridMenuCallback()` above) - there's no mute here (no CLI/audio-
+toggle infrastructure on this port at all) and no glow/CRT (deliberately
+out of scope for this port from the start). So the badge is a single
+letter, "G", not a word: 400x240 has nowhere near the width for the SDL
+labels, and inventing badges for toggles this port doesn't have would
+just be misleading. Boxed (inverted fill) when on, outlined when off,
+since a real 1-bit panel has no dim gray to fall back on the way the SDL
+ports' own new `MD_COLOR_DARKGRAY` does. `md_showStatusToast()` itself
+and the toast box drawing (`drawStatusToast()`, called last from
+`update()`, same "lands on top of everything" placement as the SDL ports'
+own `md_endFrame()` call site) are both close-to-verbatim ports of the
+sibling's own identical functions, adapted from `pd_api.h`'s own
+`pd->graphics->` calls in place of `biosDrawText()`/`md_drawSolidRect()`.
+Wired into `pixelGridMenuCallback()` (shows "PIXEL GRID ON"/"PIXEL GRID
+OFF" the instant the checkmark flips - the toast matters more here than on
+the SDL ports, since flipping the checkmark happens inside the system
+menu, which then closes over the game, so without a toast there's no
+confirmation the press did anything at all).
+
+**`md_statusToastJustExpired()` needed real logic, not a permanently-false
+stub, caught by direct user follow-up** ("remember it needs to also
+redraw the screen after toasts get hidden") after an initial version
+returned `false` unconditionally, reasoned (wrongly) that Playdate's own
+toast - drawn directly from `update()`, not routed through
+`gamesMain.c`'s own dispatch the way the SDL ports' equivalent is - had
+nothing equivalent to the SDL ports' own persistent-`gScreen` staleness
+risk to guard against. That reasoning missed that Playdate's own
+framebuffer is exactly as persistent as the SDL ports' `gScreen` (real
+Gamebuino/SSD1306 VRAM behavior) - this project's own "Pixel-grid effect +
+system menu" section above already found and fixed the identical
+staleness risk for the pixel-grid toggle itself, on this exact port, for
+this exact reason. Fixed by moving the actual redraw-on-expiry logic
+directly into `drawStatusToast()` (no need for the public
+`md_statusToastJustExpired()` query/poll indirection the SDL ports use -
+that exists purely so `gamesMain.c`, in a different translation unit, can
+ask about state living in `sdlBackend.c`; this port's own toast is drawn
+directly from `update()`, in the same file that already has
+`gCurrentGameIndex` in scope, so the check just happens right there): on
+the exact tick the countdown reaches zero, if a game is currently running,
+its own `onResume()` hook (if it has one) is called once, forcing a real
+redraw - the identical fix, and the identical reasoning, already
+established for `pixelGridMenuCallback()` a few functions above it.
+`md_statusToastJustExpired()` itself stays a real, permanently-`false`
+stub (still needed purely to satisfy `gamesMain.c`'s own dead-code-but-
+still-linked call to it), since the actual redraw-on-expiry work now
+happens locally instead.
+
+Verified with a clean rebuild (`cmake -B build && cmake --build build`,
+including the `pdc`-driven `.pdx` packaging step) - confirmed genuinely
+broken before this fix (four real unresolved-external linker errors) and
+fully clean after, no new warnings beyond the same pre-existing
+`-Wstrict-prototypes`/unused-static-helper class already present on this
+port. Not verified by an actual Simulator run/screenshot this session.
+
 ## Status
 
 All 82 games ported, verified, and wired into the menu on all three ports

@@ -275,6 +275,19 @@ void md_drawColumnPixels( int x, int y, int bits, int count )
     (void)x; (void)y; (void)bits; (void)count;
 }
 
+// Same "real, callable no-op" reasoning as the two above - the only actual
+// caller in the whole codebase is biosFont.h's own biosDrawCharColor()
+// (added for the SDL ports' own status-badge dim/bright color scheme, see
+// machineDependent.h's own MD_COLOR_DARKGRAY comment), itself only ever
+// invoked from the dead BIOS-font menu path this port never runs. Still
+// needs a real definition - biosFont.h is #include'd into every gameworld
+// TU that also includes machineDependent.h, so its own (unused but still
+// compiled) biosDrawCharColor() body needs *something* to link against.
+void md_drawColumnPixelsColor( int x, int y, int bits, int count, int color )
+{
+    (void)x; (void)y; (void)bits; (void)count; (void)color;
+}
+
 // No thumbnails on this port (no BIOS-font/640x360 menu to show them in -
 // see this file's own header comment) - 0 unconditionally, matching
 // md_getThumbnailCount()'s own documented "no thumbnail yet" contract.
@@ -759,6 +772,129 @@ static void menuInit()
     menuLoadThumbnails();
 }
 
+// -----------------------------------------------------------------------------
+//   Toggle status icon + the transient "you just changed this" toast
+// -----------------------------------------------------------------------------
+//
+// Ported from the sibling gamebuino_classic_sdl project's own identical
+// feature on ITS Playdate port. The SDL ports show a row of word badges
+// (SND/GRID/GLOW/CRT) for the global toggles they have. This port has
+// exactly ONE of them wired to anything: the pixel grid, flipped from
+// Playdate's own system-menu checkmark (see pixelGridMenuCallback() below)
+// - there's no mute here (no CLI/audio-toggle infrastructure on this port
+// at all), and no glow/CRT (deliberately out of scope for this port from
+// the start, see "The Playdate port" above). So the row is a single
+// letter rather than four words: 400x240 has nowhere near the width for
+// the SDL labels, and inventing badges for toggles this port does not
+// have would just be misleading.
+//
+// The toast matters more here than on the SDL ports: flipping the
+// checkmark happens inside the system menu, which then closes over the
+// game, so without it there is no confirmation the press did anything at
+// all.
+
+#define PD_STATUS_TOAST_FRAMES 60
+
+static char gStatusToastText[ 64 ];
+static int  gStatusToastFrames = 0;
+
+void md_showStatusToast( char* text )
+{
+    strncpy( gStatusToastText, text, sizeof( gStatusToastText ) - 1 );
+    gStatusToastText[ sizeof( gStatusToastText ) - 1 ] = 0;
+    gStatusToastFrames = PD_STATUS_TOAST_FRAMES;
+}
+
+// Never called on this port - gameworld/menu.c's own menu_update() is not
+// used here (this file has its own from-scratch menu, see the header
+// comment), so the definition exists to satisfy the link and the real
+// icon is drawn by menuDrawStatusIcon() below instead.
+void md_drawToggleStatusIcons()
+{
+}
+
+// gamesMain.c's own dispatch function (dead code here, see this file's own
+// header comment) is the only real caller - it forces a redraw when this
+// reports true, to fix a staleness case that can't happen on this port in
+// the first place: drawStatusToast() below is called directly from this
+// file's own update() loop every real tick, not baked into a persistent
+// game-content buffer the way the SDL ports' own gScreen is, so there's
+// nothing for it to leave "burned in" once it stops drawing. Always false.
+bool md_statusToastJustExpired()
+{
+    return false;
+}
+
+// One single-letter badge in the menu's own top-right corner: "G" for the
+// pixel grid, drawn boxed when on and plain when off, since a 1-bit panel
+// has no dim gray to fall back on the way the SDL ports do.
+static void menuDrawStatusIcon()
+{
+    const char* label = "G";
+    size_t len = strlen( label );
+    int w = pd->graphics->getTextWidth( gMenuFont, label, len, kASCIIEncoding, 0 );
+    int x = 400 - 10 - w;
+    int y = 6;
+
+    if( gPixelGridEnabled )
+    {
+        pd->graphics->fillRect( x - 3, y - 2, w + 6, gMenuRowHeight - 2, kColorBlack );
+        pd->graphics->setDrawMode( kDrawModeInverted );
+        pd->graphics->drawText( label, len, kASCIIEncoding, x, y );
+        pd->graphics->setDrawMode( kDrawModeCopy );
+    }
+    else
+    {
+        pd->graphics->drawRect( x - 3, y - 2, w + 6, gMenuRowHeight - 2, kColorBlack );
+        pd->graphics->drawText( label, len, kASCIIEncoding, x, y );
+    }
+}
+
+// Tentative declaration: the real definition sits further down (near
+// returnToMenu()), but drawStatusToast() below needs to read it.
+static int gCurrentGameIndex;
+
+// Drawn last of all, so it lands on top of the game's own finished frame
+// and the menu alike. Playdate's own framebuffer is just as persistent as
+// the SDL ports' own gScreen (real Gamebuino/SSD1306 VRAM behavior, see
+// pixelGridMenuCallback()'s own comment on the identical staleness risk
+// already found and fixed for the pixel-grid toggle) - so once the
+// countdown reaches zero and this box stops being drawn, a game whose own
+// update() skips redrawing on ticks where nothing else changed would
+// otherwise leave the toast's own pixels burned in forever. Forces one
+// real redraw via the current game's own onResume() hook (if it has one)
+// on exactly the tick that happens, the same fix already applied there -
+// no need for the SDL ports' own md_statusToastJustExpired() indirection
+// (that exists purely so gamesMain.c, in a different file, can poll it;
+// this port's own toast is drawn directly from update() below, in the
+// same file that already knows gCurrentGameIndex, so the check can just
+// happen right here).
+static void drawStatusToast()
+{
+    if( gStatusToastFrames <= 0 )
+      return;
+
+    gStatusToastFrames--;
+
+    if( gStatusToastFrames == 0 && gCurrentGameIndex != -1 )
+    {
+        GameFunc onResume = menu_getGame( gCurrentGameIndex )->onResume;
+        if( onResume != NULL )
+          onResume();
+    }
+
+    size_t len = strlen( gStatusToastText );
+    int textW = pd->graphics->getTextWidth( gMenuFont, gStatusToastText, len, kASCIIEncoding, 0 );
+    int boxW = textW + 20;
+    int boxH = gMenuRowHeight + 8;
+    int boxX = ( 400 - boxW ) / 2;
+    int boxY = 240 - boxH - 10;
+
+    pd->graphics->fillRect( boxX, boxY, boxW, boxH, kColorWhite );
+    pd->graphics->drawRect( boxX, boxY, boxW, boxH, kColorBlack );
+    pd->graphics->drawText( gStatusToastText, len, kASCIIEncoding, boxX + 10, boxY + 4 );
+}
+
 static void menuDrawCentered( const char* text, int y )
 {
     size_t len = strlen( text );
@@ -835,6 +971,7 @@ static int menuUpdate()
     pd->graphics->clear( kColorWhite );
     menuDrawCentered( "TINYJOYPAD FOR PLAYDATE", MENU_TITLE_Y );
     menuDrawCentered( "UP/DOWN SELECT  A PLAY", MENU_HINT_Y );
+    menuDrawStatusIcon();
 
     int currentPage = gMenuSelection / visibleRows;
 
@@ -957,6 +1094,9 @@ static void pixelGridMenuCallback( void* userdata )
       return;
     gPixelGridEnabled = pd->system->getMenuItemValue( gPixelGridMenuItem ) != 0;
 
+    if( gPixelGridEnabled ) md_showStatusToast( "PIXEL GRID ON" );
+    else                    md_showStatusToast( "PIXEL GRID OFF" );
+
     // Same problem menu.h's own onResume hook already exists to solve (see
     // its own comment): a game that skips its own redraw on frames where
     // nothing changed (an isInvalid-style dirty-flag optimization) won't
@@ -1065,6 +1205,10 @@ static int update( void* userdata )
             pixelGridEffectRender();
         }
     }
+
+    // Last of all, so it lands on top of the game's own finished frame and
+    // the menu alike.
+    drawStatusToast();
 
     md_updateAudio();
     obonoCoreShimUpdateSound();
