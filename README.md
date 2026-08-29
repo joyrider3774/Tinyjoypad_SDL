@@ -1,4 +1,5 @@
 # TinyJoypad → SDL
+![DownloadCountTotal](https://img.shields.io/github/downloads/joyrider3774/Tinyjoypad_SDL/total?label=total%20downloads&style=plastic) ![DownloadCountLatest](https://img.shields.io/github/downloads/joyrider3774/Tinyjoypad_SDL/latest/total?style=plastic) ![LatestVersion](https://img.shields.io/github/v/tag/joyrider3774/Tinyjoypad_SDL?label=Latest%20version&style=plastic) ![License](https://img.shields.io/github/license/joyrider3774/Tinyjoypad_SDL?style=plastic)
 
 ![Menu screenshot](metadata/menu.png)
 
